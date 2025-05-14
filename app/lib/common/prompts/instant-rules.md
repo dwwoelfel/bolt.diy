@@ -9,16 +9,9 @@ Instant. When talking about InstantDB you should just say Instant.
 
 # How to use Instant in projects
 
-Instant offers client side javascript packages for vanilla JS, react,
-and react native. Instant also offers a javascript admin SDK that can be used on
-the backend.
+Instant offers client side javascript package for React.
 
-If you want to use Instant with react you should only use `@instantdb/react`. For react-native you should
-only use `@instantdb/react-native`. For the admin SDK you should only use
-`@instantdb/admin`. For other client-side frameworks like Svelte or vanilla js
-you should only use `@instantdb/core`
-
-You cannot use Instant on the backend outside of the admin SDK at the moment.
+If you want to use Instant with react you should only use `@instantdb/react`.
 
 # InstantDB Initialization Guide
 
@@ -35,50 +28,216 @@ When adding InstantDB to an application, you need to obtain an app id. First, ge
 
 Prefer storing the app id in the proper .env file for the framework.
 
-Instant supports multiple environment variable names for storing your app ID:
+Instant supports multiple environment variable names for storing your app ID. Since you use Vite, Save the environment variable as `VITE_INSTANT_APP_ID`.
 
-- `INSTANT_APP_ID` - default for all applications
-- `NEXT_PUBLIC_INSTANT_APP_ID` - for Next.js apps
-- `PUBLIC_INSTANT_APP_ID` - for Svelte apps
-- `VITE_INSTANT_APP_ID` - for Vite apps
-- `NUXT_PUBLIC_INSTANT_APP_ID` - for Nuxt apps
-- `EXPO_PUBLIC_INSTANT_APP_ID` - for Expo apps
+# A full Getting Started Example
 
-Choose the appropriate variable name based on your framework.
+To get a sense of how to use queries and transactions, here's a full example of a todo list app on Instant.
+
+```javascript
+// instant.schema.ts
+import { i, InstaQLEntity } from "@instantdb/react";
+
+const _schema = i.schema({
+  entities: {
+    todos: i.entity({
+      text: i.string(),
+      done: i.boolean(),
+      createdAt: i.number(),
+    }),
+  },
+});
+
+type _AppSchema = typeof _schema;
+interface AppSchema extends _AppSchema {}
+const schema: AppSchema = _schema;
+
+export type { AppSchema };
+
+export default schema;
+
+// lib/db.ts
+import { init } from '@instantdb/react';
+import schema from '../instant.schema';
+
+export const db = init({
+  appId: process.env.VITE_INSTANT_APP_ID,
+  schema,
+});
+
+// app/page.tsx
+import { id, init, InstaQLEntity } from "@instantdb/react";
+import { db } from '../lib/db';
+import { AppSchema } from '../instant.schema';
+
+type Todo = InstaQLEntity<AppSchema, "todos">;
+
+const db = init({ appId: process.env.VITE_INSTANT_APP_ID, schema });
+
+function App() {
+  // Read Data
+  const { isLoading, error, data } = db.useQuery({ todos: {} });
+  if (isLoading) {
+    return;
+  }
+  if (error) {
+    return <div className="text-red-500 p-4">Error: {error.message}</div>;
+  }
+  const { todos } = data;
+  return (
+    <div className="font-mono min-h-screen flex justify-center items-center flex-col space-y-4">
+      <h2 className="tracking-wide text-5xl text-gray-300">todos</h2>
+      <div className="border border-gray-300 max-w-xs w-full">
+        <TodoForm todos={todos} />
+        <TodoList todos={todos} />
+        <ActionBar todos={todos} />
+      </div>
+      <div className="text-xs text-center">
+        Open another tab to see todos update in realtime!
+      </div>
+    </div>
+  );
+}
+
+// Write Data
+// ---------
+function addTodo(text: string) {
+  db.transact(
+    db.tx.todos[id()].update({
+      text,
+      done: false,
+      createdAt: Date.now(),
+    })
+  );
+}
+
+function deleteTodo(todo: Todo) {
+  db.transact(db.tx.todos[todo.id].delete());
+}
+
+function toggleDone(todo: Todo) {
+  db.transact(db.tx.todos[todo.id].update({ done: !todo.done }));
+}
+
+function deleteCompleted(todos: Todo[]) {
+  const completed = todos.filter((todo) => todo.done);
+  const txs = completed.map((todo) => db.tx.todos[todo.id].delete());
+  db.transact(txs);
+}
+
+function toggleAll(todos: Todo[]) {
+  const newVal = !todos.every((todo) => todo.done);
+  db.transact(
+    todos.map((todo) => db.tx.todos[todo.id].update({ done: newVal }))
+  );
+}
+
+
+// Components
+// ----------
+function ChevronDownIcon() {
+  return (
+    <svg viewBox="0 0 20 20">
+      <path
+        d="M5 8 L10 13 L15 8"
+        stroke="currentColor"
+        fill="none"
+        strokeWidth="2"
+      />
+    </svg>
+  );
+}
+
+function TodoForm({ todos }: { todos: Todo[] }) {
+  return (
+    <div className="flex items-center h-10 border-b border-gray-300">
+      <button
+        className="h-full px-2 border-r border-gray-300 flex items-center justify-center"
+        onClick={() => toggleAll(todos)}
+      >
+        <div className="w-5 h-5">
+          <ChevronDownIcon />
+        </div>
+      </button>
+      <form
+        className="flex-1 h-full"
+        onSubmit={(e) => {
+          e.preventDefault();
+          const input = e.currentTarget.input as HTMLInputElement;
+          addTodo(input.value);
+          input.value = "";
+        }}
+      >
+        <input
+          className="w-full h-full px-2 outline-none bg-transparent"
+          autoFocus
+          placeholder="What needs to be done?"
+          type="text"
+          name="input"
+        />
+      </form>
+    </div>
+  );
+}
+
+function TodoList({ todos }: { todos: Todo[] }) {
+  return (
+    <div className="divide-y divide-gray-300">
+      {todos.map((todo) => (
+        <div key={todo.id} className="flex items-center h-10">
+          <div className="h-full px-2 flex items-center justify-center">
+            <div className="w-5 h-5 flex items-center justify-center">
+              <input
+                type="checkbox"
+                className="cursor-pointer"
+                checked={todo.done}
+                onChange={() => toggleDone(todo)}
+              />
+            </div>
+          </div>
+          <div className="flex-1 px-2 overflow-hidden flex items-center">
+            {todo.done ? (
+              <span className="line-through">{todo.text}</span>
+            ) : (
+              <span>{todo.text}</span>
+            )}
+          </div>
+          <button
+            className="h-full px-2 flex items-center justify-center text-gray-300 hover:text-gray-500"
+            onClick={() => deleteTodo(todo)}
+          >
+            X
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ActionBar({ todos }: { todos: Todo[] }) {
+  return (
+    <div className="flex justify-between items-center h-10 px-2 text-xs border-t border-gray-300">
+      <div>Remaining todos: {todos.filter((todo) => !todo.done).length}</div>
+      <button
+        className=" text-gray-300 hover:text-gray-500"
+        onClick={() => deleteCompleted(todos)}
+      >
+        Delete Completed
+      </button>
+    </div>
+  );
+}
+
+export default App;
+```
+
+And with that, you'll have a full-stack app running on Instant! Now let's get into the details.
 
 ## Initializing InstantDB in Your Application
 
-Once you have your app ID, you can initialize InstantDB in your application. Here's a basic example:
+Once you have your app ID, you can initialize InstantDB in your application. For TypeScript applications, add the schema argument to enable auto-completion and type safety. While Instant maintains a single connection regardless of how many times you call `init` with the same app ID, it's recommended to create a central DB instance.
 
-```javascript
-import { init } from '@instantdb/react';
-
-const db = init({ appId: process.env.INSTANT_APP_ID });
-
-function App() {
-  return <Main />;
-}
-```
-
-### Adding TypeScript Support
-
-For TypeScript applications, add the schema argument to enable auto-completion and type safety:
-
-```typescript
-import { init } from '@instantdb/react';
-import schema from './instant.schema';
-
-const db = init({
-  appId: process.env.INSTANT_APP_ID,
-  schema,
-});
-```
-
-The `schema` file is automatically generated by the CLI during the init process.
-
-### Recommended Pattern: Central DB Instance
-
-While Instant maintains a single connection regardless of how many times you call `init` with the same app ID, it's recommended to create a central DB instance:
+Here's a full example:
 
 ```typescript
 // lib/db.ts
@@ -86,7 +245,7 @@ import { init } from '@instantdb/react';
 import schema from '../instant.schema';
 
 export const db = init({
-  appId: process.env.INSTANT_APP_ID,
+  appId: process.env.VITE_INSTANT_APP_ID,
   schema,
 });
 ```
@@ -146,12 +305,12 @@ const _schema = i.schema({
   },
 });
 
-// This helps TypeScript provide better intellisense
 type _AppSchema = typeof _schema;
 interface AppSchema extends _AppSchema {}
 const schema: AppSchema = _schema;
 
 export type { AppSchema };
+
 export default schema;
 ```
 
@@ -501,7 +660,6 @@ const _schema = i.schema({
   },
 });
 
-// TypeScript helpers
 type _AppSchema = typeof _schema;
 interface AppSchema extends _AppSchema {}
 const schema: AppSchema = _schema;
@@ -553,7 +711,7 @@ You **CANNOT** rename or delete attributes in the CLI. Instead inform users to:
 
 ## Best Practices
 
-1. **Index wisely**: Add indexes to attributes you'll frequently query or filter by
+1. **Index wisely**: Add indexes to attributes you'll frequently query or filter by. Dates are often useful to index.
 2. **Use unique constraints**: For attributes that should be unique (usernames, slugs, etc.)
 3. **Label links clearly**: Use descriptive names for link labels
 4. **Consider cascade deletions**: Set `onDelete: 'cascade'` for dependent relationships
@@ -1191,7 +1349,7 @@ import { init } from '@instantdb/react';
 import schema from './instant.schema';
 
 export const db = init({
-  appId: process.env.INSTANT_APP_ID,
+  appId: process.env.VITE_INSTANT_APP_ID,
   schema,
 });
 
@@ -1664,7 +1822,7 @@ const { data } = db.useQuery(query);
 
 ### Fetching Multiple Namespaces
 
-Query multiple namespaces in one go by specifying mulitple namespaces:
+Query multiple namespaces in one go by specifying multiple namespaces:
 
 ```typescript
 // ✅ Good: Fetch both goals and todos
@@ -2227,1209 +2385,6 @@ Common errors:
 2. **"Invalid operator"**: Check operator syntax and spelling
 3. **"Invalid query structure"**: Verify your query structure, especially $ placement
 
-# InstantDB Server-Side Development Guide
-
-This guide explains how to use InstantDB in server-side javascript environments
-
-## Initializing the Admin SDK
-
-For server-side operations, Instant exposes `@instantdb/admin`. This package has similar functionality to the client SDK but is designed specifically for server environments.
-
-First, install the admin SDK:
-
-```bash
-npm install @instantdb/admin
-```
-
-Now you can use it in your project
-
-```javascript
-// ✅ Good: Proper server-side initialization
-import { init, id } from '@instantdb/admin';
-
-const db = init({
-  appId: process.env.NEXT_PUBLIC_INSTANT_APP_ID,
-  adminToken: process.env.INSTANT_APP_ADMIN_TOKEN,
-});
-```
-
-❌ **Common mistake**: Using client SDK on the server
-
-```javascript
-// ❌ Bad: Don't use the React SDK on the server
-import { init } from '@instantdb/react'; // Wrong package!
-
-const db = init({
-  appId: process.env.INSTANT_APP_ID,
-  adminToken: process.env.INSTANT_APP_ADMIN_TOKEN,
-});
-```
-
-Hardcoding or exposing your app id is fine but make sure to never expose
-your admin token.
-
-❌ **Common mistake**: Exposing admin token in client code
-
-```javascript
-// ❌ Bad: Never expose your admin token in client code
-const db = init({
-  appId: 'app-123',
-  adminToken: 'admin-token-abc', // Hardcoded token = security risk!
-});
-```
-
-For better type safety, include your schema:
-
-```javascript
-// ✅ Good: Using schema for type safety
-import { init, id } from '@instantdb/admin';
-import schema from '../instant.schema'; // Your schema file
-
-const db = init({
-  appId: process.env.INSTANT_APP_ID,
-  adminToken: process.env.INSTANT_APP_ADMIN_TOKEN,
-  schema, // Add your schema here
-});
-```
-
-## Reading Data from the Server
-
-The structure of queries from the admin sdk is identical to the client SDK
-
-```typescript
-{
-  namespace: {
-    $: { /* operators for this namespace */ },
-    linkedNamespace: {
-      $: { /* operators for this linked namespace */ },
-    },
-  },
-}
-```
-
-Use `db.query` in the admin SDK instead of `db.useQuery`. It is an async
-API without loading states. We wrap queries in try catch blocks to handle
-errors. Unlike the client SDK, queries in the admin SDK bypass permission
-checks
-
-```javascript
-// ✅ Good: Server-side querying
-const fetchTodos = async () => {
-  try {
-    const data = await db.query({ todos: {} });
-    const { todos } = data;
-    console.log(`Found ${todos.length} todos`);
-    return todos;
-  } catch (error) {
-    console.error('Error fetching todos:', error);
-    throw error;
-  }
-};
-```
-
-❌ **Common mistake**: Using client-side syntax
-
-```javascript
-// ❌ Bad: Don't use useQuery on the server
-const { data, isLoading, error } = db.useQuery({ todos: {} }); // Wrong approach!
-```
-
-## Writing Data from the Server
-
-Use `db.transact` in the admin SDK to create, update, and delete data.
-`db.transact` has the same API and behaves the same in the admin and client SDK.
-The only difference is permission checks are bypassed in the admin SDK.
-
-```javascript
-// ✅ Good: Server-side transaction
-const createTodo = async (title, dueDate) => {
-  try {
-    const result = await db.transact(
-      db.tx.todos[id()].update({
-        title,
-        dueDate,
-        createdAt: new Date().toISOString(),
-        completed: false,
-      }),
-    );
-
-    console.log('Created todo with transaction ID:', result['tx-id']);
-    return result;
-  } catch (error) {
-    console.error('Error creating todo:', error);
-    throw error;
-  }
-};
-```
-
-## Impersonate a User
-
-Ue `db.asUser` to enforce permission checks for queries and transactions. This
-is **ONLY** available in the admin SDK.
-
-```typescript
-// ✅ Good: Impersonating a user by email
-const userDb = db.asUser({ email: userEmail });
-
-// ✅ Good: Impersonating a user with a token
-const userDb = db.asUser({ token: userToken });
-
-// ✅ Good: Operating as a guest
-const guestDb = db.asUser({ guest: true });
-};
-```
-
-## Retrieve a user
-
-Use `db.auth.getUser` to retrieve an app user. This is \*_ONLY_ available in the admin SDk
-
-```typescript
-// ✅ Good: Retrieve a user by email
-const user = await db.auth.getUser({ email: 'alyssa_p_hacker@instantdb.com' });
-
-// ✅ Good: Retrieve a user by id
-const user = await db.auth.getUser({ id: userId });
-
-// ✅ Good: Retrieve a user by refresh_token.
-const user = await db.auth.getUser({ refresh_token: userRefreshToken });
-```
-
-## Delete a user
-
-Use `db.auth.deleteUser` to delete an app user. This is \*_ONLY_ available in the admin SDk
-
-```typescript
-// ✅ Good: Delete a user by email
-const user = await db.auth.deleteUser({ email: 'alyssa_p_hacker@instantdb.com' });
-
-// ✅ Good: Delete a user by id
-const user = await db.auth.deleteUser({ id: userId });
-
-// ✅ Good: Delete a user by refresh_token.
-const user = await db.auth.deleteUser({ refresh_token: userRefreshToken });
-```
-
-Note, this _only_ deletes the user record and any associated data with cascade on delete.
-If there's additional data to delete you need to do an additional transaction.
-
-## Sign Out Users
-
-Use `db.auth.signOut(email: string)` to sign out an app user. This behaves
-differently than the client sdk version. It will invalidate all a user's refresh
-tokens and sign out a user everywhere.
-
-```javascript
-// ✅ Good: Sign out a user from the server
-await db.auth.signOut(email);
-```
-
-## Creating Authenticated Endpoints
-
-Use `db.auth.verifyToken` on the server to create authenticated endpoints
-
-```javascript
-// ✅ Good: Authenticated API endpoint
-app.post('/api/protected-resource', async (req, res) => {
-  try {
-    // Get the token from request headers
-    const token = req.headers.authorization?.replace('Bearer ', '');
-
-    if (!token) {
-      return res.status(401).json({ error: 'Authentication required' });
-    }
-
-    // Verify the token
-    const user = await db.auth.verifyToken(token);
-
-    if (!user) {
-      return res.status(401).json({ error: 'Invalid or expired token' });
-    }
-
-    // Token is valid, proceed with the authenticated request
-    // The user object contains the user's information
-    console.log(`Request from verified user: ${user.email}`);
-
-    // Process the authenticated request
-    const { data } = await db.asUser({ email: user.email }).query({
-      profiles: { $: { where: { '$user.id': user.id } } },
-    });
-
-    return res.status(200).json({
-      message: 'Authentication successful',
-      profile: data.profiles[0],
-    });
-  } catch (error) {
-    console.error('Authentication error:', error);
-    return res.status(500).json({ error: 'Server error' });
-  }
-});
-```
-
-And on the client pass along the refresh token to the client
-
-```javascript
-// ✅ Good: Frontend calling an authenticated endpoint
-const callProtectedApi = async () => {
-  const { user } = db.useAuth();
-
-  if (!user) {
-    console.error('User not authenticated');
-    return;
-  }
-
-  try {
-    // ✅ Good: Send the user's refresh token to your endpoint
-    const response = await fetch('/api/protected-resource', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${user.refresh_token}`,
-      },
-      body: JSON.stringify({
-        /* request data */
-      }),
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.error || 'API request failed');
-    }
-
-    return data;
-  } catch (error) {
-    console.error('API call error:', error);
-    throw error;
-  }
-};
-```
-
-## Server-Side use cases
-
-Here are some common use cases you can implement with the admin SDK
-
-### Scheduled Jobs
-
-Running periodic tasks with a scheduler (like cron):
-
-```javascript
-// ✅ Good: Scheduled cleanup job
-const cleanupExpiredItems = async () => {
-  const now = new Date().toISOString();
-
-  // Find expired items
-  const { expiredItems } = await db.query({
-    items: {
-      $: {
-        where: {
-          expiryDate: { $lt: now },
-        },
-      },
-    },
-  });
-
-  // Delete them
-  if (expiredItems.length > 0) {
-    await db.transact(expiredItems.map((item) => db.tx.items[item.id].delete()));
-    console.log(`Cleaned up ${expiredItems.length} expired items`);
-  }
-};
-
-// Run this with a scheduler
-```
-
-### Data Import/Export
-
-```javascript
-// ✅ Good: Exporting data without permission checks
-const exportUserData = async (userId) => {
-  const data = await db.query({
-    profiles: {
-      $: { where: { id: userId } },
-      authoredPosts: {
-        comments: {},
-        tags: {},
-      },
-    },
-  });
-
-  return JSON.stringify(data, null, 2);
-};
-```
-
-### Custom Authentication Flows
-
-```javascript
-// ✅ Good: Custom sign-up flow
-const customSignUp = async (email, userData) => {
-  // Create a user in your auth system
-  const token = await db.auth.createToken(email);
-
-  // Get the user
-  const user = await db.auth.getUser({ refresh_token: token });
-
-  // Create a profile with additional data
-  await db.transact(
-    db.tx.profiles[id()]
-      .update({
-        ...userData,
-        createdAt: new Date().toISOString(),
-      })
-      .link({ $users: user.id }),
-  );
-
-  return user;
-};
-```
-
-## Conclusion
-
-The InstantDB admin SDK enables server-side operations, allowing you to:
-
-- Run background tasks and scheduled jobs
-- Implement custom authentication flows
-- Perform administrative operations
-- Manage user accounts securely
-
-Always follow best practices by:
-
-- Keeping your admin token secure
-- Wrapping transactions in try/catch blocks to handle errors
-
-Remember that the admin SDK bypasses permissions by default
-
-# InstantDB Storage Guide
-
-This guide explains how to use InstantDB Storage to easily upload, manage, and serve files in your applications.
-
-## Core Concepts
-
-InstantDB Storage allows you to:
-
-- Upload files (images, videos, documents, etc.)
-- Retrieve file metadata and download URLs
-- Delete files
-- Link files to other entities in your data model
-- Secure files with permissions
-
-Files are stored in a special `$files` namespace that automatically updates when files are added, modified, or removed.
-
-## Getting Started
-
-### Setting Up Schema
-
-First, ensure your schema includes the `$files` namespace:
-
-```typescript
-// instant.schema.ts
-import { i } from '@instantdb/react';
-
-const _schema = i.schema({
-  entities: {
-    $files: i.entity({
-      path: i.string().unique().indexed(),
-      url: i.string(),
-    }),
-    // Your other entities...
-  },
-  links: {
-    // Your links...
-  },
-});
-
-// TypeScript helpers
-type _AppSchema = typeof _schema;
-interface AppSchema extends _AppSchema {}
-const schema: AppSchema = _schema;
-
-export type { AppSchema };
-export default schema;
-```
-
-### Setting Up Permissions
-
-Configure permissions to control who can upload, view, and delete files:
-
-```typescript
-// instant.perms.ts
-import type { InstantRules } from '@instantdb/react';
-
-const rules = {
-  $files: {
-    allow: {
-      view: 'auth.id != null', // Only authenticated users can view
-      create: 'auth.id != null', // Only authenticated users can upload
-      delete: 'auth.id != null', // Only authenticated users can delete
-    },
-  },
-} satisfies InstantRules;
-
-export default rules;
-```
-
-Note `update` is currently not supported for `$files` so there is no need to
-define an `update` rule for `$files`
-
-> **Note:** For development, you can set all permissions to `"true"`, but for production applications, you should implement proper access controls.
-
-## Uploading Files
-
-### Basic File Upload
-
-```typescript
-// ✅ Good: Simple file upload
-async function uploadFile(file: File) {
-  try {
-    await db.storage.uploadFile(file.name, file);
-    console.log('File uploaded successfully!');
-  } catch (error) {
-    console.error('Error uploading file:', error);
-  }
-}
-```
-
-### Custom Path and Options
-
-```typescript
-// ✅ Good: Upload with custom path and content type
-async function uploadProfileImage(userId: string, file: File) {
-  try {
-    const path = `users/${userId}/profile.jpg`;
-    await db.storage.uploadFile(path, file, {
-      contentType: 'image/jpeg',
-      contentDisposition: 'inline',
-    });
-    console.log('Profile image uploaded!');
-  } catch (error) {
-    console.error('Error uploading profile image:', error);
-  }
-}
-```
-
-### React Component for Image Upload
-
-```tsx
-// ✅ Good: Image upload component
-function ImageUploader() {
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [preview, setPreview] = useState<string | null>(null);
-  const [isUploading, setIsUploading] = useState(false);
-
-  // Handle file selection
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setSelectedFile(file);
-      // Create preview URL
-      const previewUrl = URL.createObjectURL(file);
-      setPreview(previewUrl);
-    }
-  };
-
-  // Upload the file
-  const handleUpload = async () => {
-    if (!selectedFile) return;
-
-    setIsUploading(true);
-    try {
-      await db.storage.uploadFile(selectedFile.name, selectedFile);
-      // Clean up
-      setSelectedFile(null);
-      if (preview) {
-        URL.revokeObjectURL(preview);
-        setPreview(null);
-      }
-    } catch (error) {
-      console.error('Upload failed:', error);
-    } finally {
-      setIsUploading(false);
-    }
-  };
-
-  return (
-    <div className="uploader">
-      <input type="file" accept="image/*" onChange={handleFileChange} disabled={isUploading} />
-
-      {preview && (
-        <div className="preview">
-          <img src={preview} alt="Preview" />
-        </div>
-      )}
-
-      <button onClick={handleUpload} disabled={!selectedFile || isUploading}>
-        {isUploading ? 'Uploading...' : 'Upload'}
-      </button>
-    </div>
-  );
-}
-```
-
-❌ Common mistake: Not handling errors or loading states
-
-```tsx
-// ❌ Bad: Missing error handling and loading state
-function BadUploader() {
-  const handleUpload = async (file) => {
-    // No try/catch, no loading state
-    await db.storage.uploadFile(file.name, file);
-  };
-}
-```
-
-## Retrieving Files
-
-Files are accessed by querying the `$files` namespace:
-
-### Basic Query
-
-```typescript
-// ✅ Good: Query all files
-function FileList() {
-  const { isLoading, error, data } = db.useQuery({
-    $files: {}
-  });
-
-  if (isLoading) return <div>Loading...</div>;
-  if (error) return <div>Error: {error.message}</div>;
-
-  const { $files } = data;
-
-  return (
-    <div>
-      <h2>Files ({$files.length})</h2>
-      <ul>
-        {$files.map(file => (
-          <li key={file.id}>
-            <a href={file.url} target="_blank" rel="noopener noreferrer">
-              {file.path}
-            </a>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-```
-
-### Filtered Query
-
-```typescript
-// ✅ Good: Query files with filtering and ordering
-function UserImages({ userId }: { userId: string }) {
-  const { isLoading, error, data } = db.useQuery({
-    $files: {
-      $: {
-        where: {
-          path: { $like: `users/${userId}/%` },
-        },
-        order: { serverCreatedAt: 'desc' }
-      }
-    }
-  });
-
-  if (isLoading) return <div>Loading...</div>;
-  if (error) return <div>Error: {error.message}</div>;
-
-  const { $files } = data;
-
-  return (
-    <div className="image-grid">
-      {$files.map(file => (
-        <div key={file.id} className="image-item">
-          <img src={file.url} alt={file.path} />
-        </div>
-      ))}
-    </div>
-  );
-}
-```
-
-## Displaying Images
-
-```tsx
-// ✅ Good: Image gallery component
-function ImageGallery() {
-  const { isLoading, error, data } = db.useQuery({
-    $files: {
-      $: {
-        where: {
-          path: { $like: '%.jpg' },
-        },
-      },
-    },
-  });
-
-  if (isLoading) return <div className="loading">Loading...</div>;
-  if (error) return <div className="error">Error: {error.message}</div>;
-
-  const { $files: images } = data;
-
-  if (images.length === 0) {
-    return <div className="empty">No images found</div>;
-  }
-
-  return (
-    <div className="gallery">
-      {images.map((image) => (
-        <div key={image.id} className="gallery-item">
-          <img src={image.url} alt={image.path} loading="lazy" />
-          <div className="image-info">
-            <span>{image.path.split('/').pop()}</span>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-```
-
-## Deleting Files
-
-```typescript
-// ✅ Good: Delete a file
-async function deleteFile(filePath: string) {
-  try {
-    await db.storage.delete(filePath);
-    console.log(`File ${filePath} deleted successfully`);
-  } catch (error) {
-    console.error(`Failed to delete ${filePath}:`, error);
-  }
-}
-
-// ✅ Good: Delete file component
-function FileItem({ file }) {
-  const [isDeleting, setIsDeleting] = useState(false);
-
-  const handleDelete = async () => {
-    if (confirm(`Are you sure you want to delete ${file.path}?`)) {
-      setIsDeleting(true);
-      try {
-        await db.storage.delete(file.path);
-      } catch (error) {
-        console.error('Delete failed:', error);
-        alert(`Failed to delete: ${error.message}`);
-      } finally {
-        setIsDeleting(false);
-      }
-    }
-  };
-
-  return (
-    <div className="file-item">
-      <span>{file.path}</span>
-      <button
-        onClick={handleDelete}
-        disabled={isDeleting}
-        className="delete-btn"
-      >
-        {isDeleting ? 'Deleting...' : 'Delete'}
-      </button>
-    </div>
-  );
-}
-```
-
-## Linking Files to Other Entities
-
-Files can be associated with other entities in your data model. This is useful for features like profile pictures, post attachments, etc.
-
-### Schema Setup
-
-First, define the relationship in your schema:
-
-```typescript
-// ✅ Good: Schema with file relationships
-import { i } from '@instantdb/react';
-
-const _schema = i.schema({
-  entities: {
-    $files: i.entity({
-      path: i.string().unique().indexed(),
-      url: i.string(),
-    }),
-    profiles: i.entity({
-      name: i.string(),
-      bio: i.string(),
-    }),
-    posts: i.entity({
-      title: i.string(),
-      content: i.string(),
-    }),
-  },
-  links: {
-    // Profile avatar - one-to-one relationship
-    profileAvatar: {
-      forward: { on: 'profiles', has: 'one', label: 'avatar' },
-      reverse: { on: '$files', has: 'one', label: 'profile' },
-    },
-    // Post attachments - one-to-many relationship
-    postAttachments: {
-      forward: { on: 'posts', has: 'many', label: 'attachments' },
-      reverse: { on: '$files', has: 'one', label: 'post' },
-    },
-  },
-});
-```
-
-> **Important:** Links to `$files` must be defined with `$files` in the **reverse** direction, similar to `$users`.
-
-### Upload and Link
-
-```typescript
-// ✅ Good: Upload and link a profile avatar
-async function uploadAvatar(profileId: string, file: File) {
-  try {
-    // 1. Upload the file
-    const path = `profiles/${profileId}/avatar.jpg`;
-    const { data } = await db.storage.uploadFile(path, file, {
-      contentType: 'image/jpeg',
-    });
-
-    // 2. Link the file to the profile
-    await db.transact(db.tx.profiles[profileId].link({ avatar: data.id }));
-
-    console.log('Avatar uploaded and linked successfully');
-  } catch (error) {
-    console.error('Failed to upload avatar:', error);
-  }
-}
-
-// ✅ Good: Upload multiple attachments to a post
-async function addPostAttachments(postId: string, files: File[]) {
-  try {
-    // Process each file
-    const fileIds = await Promise.all(
-      files.map(async (file, index) => {
-        const path = `posts/${postId}/attachment-${index}.${file.name.split('.').pop()}`;
-        const { data } = await db.storage.uploadFile(path, file);
-        return data.id;
-      }),
-    );
-
-    // Link all files to the post
-    await db.transact(db.tx.posts[postId].link({ attachments: fileIds }));
-
-    console.log(`${fileIds.length} attachments added to post`);
-  } catch (error) {
-    console.error('Failed to add attachments:', error);
-  }
-}
-```
-
-### Query Linked Files
-
-```typescript
-// ✅ Good: Query profiles with their avatars
-function ProfileList() {
-  const { isLoading, error, data } = db.useQuery({
-    profiles: {
-      avatar: {},
-    }
-  });
-
-  if (isLoading) return <div>Loading...</div>;
-  if (error) return <div>Error: {error.message}</div>;
-
-  const { profiles } = data;
-
-  return (
-    <div className="profiles">
-      {profiles.map(profile => (
-        <div key={profile.id} className="profile-card">
-          {profile.avatar ? (
-            <img
-              src={profile.avatar.url}
-              alt={`${profile.name}'s avatar`}
-              className="avatar"
-            />
-          ) : (
-            <div className="avatar-placeholder">No Avatar</div>
-          )}
-          <h3>{profile.name}</h3>
-          <p>{profile.bio}</p>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-// ✅ Good: Query a post with its attachments
-function PostDetails({ postId }: { postId: string }) {
-  const { isLoading, error, data } = db.useQuery({
-    posts: {
-      $: { where: { id: postId } },
-      attachments: {},
-    }
-  });
-
-  if (isLoading) return <div>Loading...</div>;
-  if (error) return <div>Error: {error.message}</div>;
-
-  const post = data.posts[0];
-  if (!post) return <div>Post not found</div>;
-
-  return (
-    <div className="post">
-      <h1>{post.title}</h1>
-      <div className="content">{post.content}</div>
-
-      {post.attachments && post.attachments.length > 0 && (
-        <div className="attachments">
-          <h2>Attachments ({post.attachments.length})</h2>
-          <div className="attachment-list">
-            {post.attachments.map(file => (
-              <a
-                key={file.id}
-                href={file.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="attachment-item"
-              >
-                {file.path.split('/').pop()}
-              </a>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-```
-
-## Permissions for File Storage
-
-`data.path.startsWith` is a useful pattern for writing permissions for `$files`
-
-```typescript
-// ✅ Good: Users can only access their own files
-const rules = {
-  $files: {
-    allow: {
-      view: 'isOwner || isAdmin',
-      create: 'isOwner',
-      delete: 'isOwner || isAdmin',
-    },
-    bind: ['isOwner', "data.path.startsWith('users/' + auth.id + '/')", 'isAdmin', "auth.ref('$user.role') == 'admin'"],
-  },
-} satisfies InstantRules;
-```
-
-## Using Storage with React Native
-
-For React Native applications, you'll need to convert files to a format compatible with InstantDB's storage:
-
-```typescript
-// ✅ Good: Upload from React Native
-import * as FileSystem from 'expo-file-system';
-import { init } from '@instantdb/react-native';
-import schema from '../instant.schema';
-
-const db = init({ appId: process.env.EXPO_PUBLIC_INSTANT_APP_ID, schema });
-
-async function uploadFromReactNative(localFilePath: string, uploadPath: string) {
-  try {
-    // Check if file exists
-    const fileInfo = await FileSystem.getInfoAsync(localFilePath);
-    if (!fileInfo.exists) {
-      throw new Error(`File does not exist at: ${localFilePath}`);
-    }
-
-    // Convert to a File object
-    const response = await fetch(fileInfo.uri);
-    const blob = await response.blob();
-
-    // Determine file type from extension or use a default
-    const extension = localFilePath.split('.').pop()?.toLowerCase();
-    let contentType = 'application/octet-stream';
-
-    // Set appropriate content type based on extension
-    if (extension === 'jpg' || extension === 'jpeg') contentType = 'image/jpeg';
-    else if (extension === 'png') contentType = 'image/png';
-    else if (extension === 'pdf') contentType = 'application/pdf';
-    // Add more types as needed
-
-    const file = new File([blob], uploadPath.split('/').pop() || 'file', {
-      type: contentType,
-    });
-
-    // Upload the file
-    await db.storage.uploadFile(uploadPath, file, { contentType });
-    console.log('File uploaded successfully!');
-    return true;
-  } catch (error) {
-    console.error('Error uploading file:', error);
-    return false;
-  }
-}
-```
-
-## Server-Side Storage Operations
-
-For server-side operations, use the Admin SDK:
-
-### Uploading from the Server
-
-```typescript
-// ✅ Good: Server-side file upload
-import { init } from '@instantdb/admin';
-import fs from 'fs';
-import path from 'path';
-import schema from '../instant.schema';
-
-const db = init({
-  appId: process.env.INSTANT_APP_ID!,
-  adminToken: process.env.INSTANT_APP_ADMIN_TOKEN!,
-  schema,
-});
-
-async function uploadFromServer(localFilePath: string, uploadPath: string) {
-  try {
-    // Read file as buffer
-    const buffer = fs.readFileSync(localFilePath);
-
-    // Determine content type based on file extension
-    const extension = path.extname(localFilePath).toLowerCase();
-    let contentType = 'application/octet-stream';
-
-    if (extension === '.jpg' || extension === '.jpeg') contentType = 'image/jpeg';
-    else if (extension === '.png') contentType = 'image/png';
-    else if (extension === '.pdf') contentType = 'application/pdf';
-    // Add more types as needed
-
-    // Upload the file
-    await db.storage.uploadFile(uploadPath, buffer, {
-      contentType,
-    });
-
-    console.log(`File uploaded to ${uploadPath}`);
-    return true;
-  } catch (error) {
-    console.error('Server upload failed:', error);
-    return false;
-  }
-}
-```
-
-### Bulk Deleting Files
-
-```typescript
-// ✅ Good: Bulk delete server-side
-async function bulkDeleteFiles(pathPattern: string) {
-  try {
-    // Query files matching the pattern
-    const { $files } = await db.query({
-      $files: {
-        $: {
-          where: {
-            path: { $like: pathPattern + '%' },
-          },
-        },
-      },
-    });
-
-    // Extract paths
-    const pathsToDelete = $files.map((file) => file.path);
-
-    if (pathsToDelete.length === 0) {
-      console.log('No files found matching pattern');
-      return 0;
-    }
-
-    // Delete in bulk
-    await db.storage.deleteMany(pathsToDelete);
-    console.log(`Deleted ${pathsToDelete.length} files`);
-    return pathsToDelete.length;
-  } catch (error) {
-    console.error('Bulk delete failed:', error);
-    throw error;
-  }
-}
-```
-
-## Best Practices
-
-### File Organization
-
-Uploading to the same path will overwrite files. Use organized file patterns to
-correctly update user, project, and application-wide assets
-
-```typescript
-// ✅ Good: Organized file paths
-// For user-specific files
-const userFilePath = `users/${userId}/profile-picture.jpg`;
-
-// For project-based files
-const projectFilePath = `projects/${projectId}/documents/${documentId}.pdf`;
-
-// For application-wide files
-const publicFilePath = `public/logos/company-logo.png`;
-```
-
-## Common Errors and Solutions
-
-1. **"Permission denied" when uploading**: Check your permissions rules for the `$files` namespace
-2. **File not appearing after upload**: Ensure your query is correct and you're handling the asynchronous nature of uploads
-
-## Complete Example: Image Gallery
-
-Here's a complete example of an image gallery with upload, display, and delete functionality:
-
-```tsx
-import React, { useState, useRef } from 'react';
-import { init, InstaQLEntity } from '@instantdb/react';
-import schema, { AppSchema } from './instant.schema';
-
-// Initialize InstantDB
-const db = init({
-  appId: process.env.NEXT_PUBLIC_INSTANT_APP_ID!,
-  schema,
-});
-
-type InstantFile = InstaQLEntity<AppSchema, '$files'>;
-
-function ImageGallery() {
-  const [uploading, setUploading] = useState(false);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  // Query all image files
-  const { isLoading, error, data } = db.useQuery({
-    $files: {
-      $: {
-        where: {
-          path: {
-            $like: '%.jpg',
-          },
-        },
-        order: {
-          serverCreatedAt: 'desc',
-        },
-      },
-    },
-  });
-
-  // Handle file selection
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setSelectedFile(file);
-      const objectUrl = URL.createObjectURL(file);
-      setPreviewUrl(objectUrl);
-    }
-  };
-
-  // Upload the selected file
-  const handleUpload = async () => {
-    if (!selectedFile) return;
-
-    setUploading(true);
-    try {
-      await db.storage.uploadFile(selectedFile.name, selectedFile, {
-        contentType: selectedFile.type,
-      });
-
-      // Reset state
-      setSelectedFile(null);
-      if (previewUrl) {
-        URL.revokeObjectURL(previewUrl);
-        setPreviewUrl(null);
-      }
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
-    } catch (error) {
-      console.error('Upload failed:', error);
-      alert('Failed to upload image. Please try again.');
-    } finally {
-      setUploading(false);
-    }
-  };
-
-  // Delete an image
-  const handleDelete = async (file: InstantFile) => {
-    if (!confirm(`Are you sure you want to delete ${file.path}?`)) {
-      return;
-    }
-
-    try {
-      await db.storage.delete(file.path);
-    } catch (error) {
-      console.error('Delete failed:', error);
-      alert('Failed to delete image. Please try again.');
-    }
-  };
-
-  if (isLoading) {
-    return <div className="loading">Loading gallery...</div>;
-  }
-
-  if (error) {
-    return <div className="error">Error: {error.message}</div>;
-  }
-
-  const { $files: images } = data;
-
-  return (
-    <div className="image-gallery-container">
-      <h1>Image Gallery</h1>
-
-      {/* Upload Section */}
-      <div className="upload-section">
-        <input
-          type="file"
-          ref={fileInputRef}
-          accept="image/jpeg,image/png,image/gif"
-          onChange={handleFileSelect}
-          disabled={uploading}
-        />
-
-        {previewUrl && (
-          <div className="preview">
-            <img src={previewUrl} alt="Preview" />
-          </div>
-        )}
-
-        <button onClick={handleUpload} disabled={!selectedFile || uploading} className="upload-button">
-          {uploading ? 'Uploading...' : 'Upload Image'}
-        </button>
-      </div>
-
-      {/* Gallery Section */}
-      <div className="gallery">
-        {images.length === 0 ? (
-          <p>No images yet. Upload some!</p>
-        ) : (
-          <div className="image-grid">
-            {images.map((image) => (
-              <div key={image.id} className="image-item">
-                <img src={image.url} alt={image.path} />
-                <div className="image-overlay">
-                  <span className="image-name">{image.path.split('/').pop()}</span>
-                  <button onClick={() => handleDelete(image)} className="delete-button">
-                    Delete
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-export default ImageGallery;
-```
-
-## Best Practices
-
-- Make sure permissions are set for uploads to succeed
-- Use organized path based permissions
-- Validate image sizes and use compression for performance
-- Use proper error handling to debug upload errors
-- Links to `$files` must be defined with `$files` in the **reverse** direction, similar to `$users`
-
 # InstantDB User Management Guide
 
 This guide explains how to effectively manage users in your InstantDB applications, covering everything from basic user operations to advanced permission patterns.
@@ -3665,25 +2620,13 @@ This guide explains how to implement user authentication in your InstantDB appli
 
 ## Authentication Options
 
-InstantDB supports several authentication methods:
+InstantDB supports several authentication methods, but use **Magic Code Authentication unless asked explicitly**.
 
-1. **Magic Code Authentication** - Email-based passwordless login
-2. **Google OAuth** - Sign in with Google accounts
-3. **Apple Sign In** - Sign in with Apple ID
-4. **Clerk Integration** - Delegate auth to Clerk
-5. **Custom Authentication** - Build your own auth flow with the Admin SDK
+**Magic Code Authentication** - Email-based passwordless login
 
 ## Core Authentication Concepts
 
 Before diving into specific methods, let's understand the key authentication concepts:
-
-### Auth Lifecycle
-
-1. **User initiates sign-in** - Triggers the auth flow via email, OAuth provider, etc.
-2. **Verification** - User proves their identity (entering a code, OAuth consent, etc.)
-3. **Token generation** - InstantDB generates a refresh token for the authenticated user
-4. **Session establishment** - The token is used to create a persistent session
-5. **User access** - The user can now access protected resources
 
 ### The `useAuth` Hook
 
@@ -3693,14 +2636,14 @@ All authentication methods use the `useAuth` hook to access the current auth sta
 function App() {
   const { isLoading, user, error } = db.useAuth();
 
-  if (isLoading) return <div>Loading...</div>;
+  if (isLoading) return;
   if (error) return <div>Authentication error: {error.message}</div>;
   if (user) return <AuthenticatedApp user={user} />;
   return <UnauthenticatedApp />;
 }
 ```
 
-Now let's explore each authentication method in detail.
+Now let's Magic Code Auth in detail
 
 ## Magic Code Authentication
 
@@ -3709,7 +2652,7 @@ This method is user-friendly and secure, as it eliminates the need for passwords
 
 ❌ **Common mistake**: Using password-based authentication in client-side code
 
-InstantDB does not provide built-in username/password authentication. If you need traditional password-based authentication, you must implement it as a custom auth flow using the Admin SDK.
+InstantDB does not provide built-in username/password authentication.
 
 ### How It Works
 
@@ -3720,8 +2663,7 @@ InstantDB does not provide built-in username/password authentication. If you nee
 
 ### Full Example
 
-Here's a complete example of how to implement magic code authentication using
-Next.js, React, and the InstantDB React SDK in a client-side application.
+Here's a complete example of how to implement magic code authentication using React, and the InstantDB React SDK in a client-side application.
 
 ```typescript
 // instant.schema.ts
@@ -3751,10 +2693,7 @@ export const db = init({
   schema
 });
 
-
 // app/page.tsx
-"use client";
-
 import React, { useState } from "react";
 import { User } from "@instantdb/react";
 import { db } from "../lib/db";
@@ -3905,141 +2844,3 @@ export default App;
 1. **Clear Error Handling** - Provide helpful error messages when code sending or verification fails
 2. **Loading States** - Show loading indicators during async operations
 3. **Resend Functionality** - Allow users to request a new code if needed
-
-## Custom Authentication
-
-For advanced use cases, you can build custom authentication flows using the InstantDB Admin SDK.
-
-### Server-Side Implementation
-
-We can use a Next.js API route to handle custom authentication logic. This example demonstrates a simple email/password validation, but you can adapt it to your needs.
-
-```typescript
-// pages/api/auth/login.ts
-import { init } from '@instantdb/admin';
-import { NextApiRequest, NextApiResponse } from 'next';
-
-// Define the type for the request body
-interface LoginRequest {
-  email: string;
-  password: string;
-}
-
-const db = init({
-  appId: process.env.NEXT_PUBLIC_INSTANT_APP_ID!,
-  adminToken: process.env.INSTANT_ADMIN_TOKEN!,
-});
-
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
-
-  const { email, password } = req.body as LoginRequest;
-
-  // Custom authentication logic
-  const isValid = await validateCredentials(email, password);
-
-  if (!isValid) {
-    return res.status(401).json({ error: 'Invalid credentials' });
-  }
-
-  try {
-    // ✅ Good: Now that we have validated the user, we can create a token
-    // and return it to the client
-    const token = await db.auth.createToken(email);
-    res.status(200).json({ token });
-  } catch (error) {
-    res.status(500).json({ error: 'Authentication failed' });
-  }
-}
-
-// Custom validation function
-async function validateCredentials(email: string, password: string): Promise<boolean> {
-  // Implement your custom validation logic
-  // e.g., check against your database
-  return true; // Return true if valid
-}
-```
-
-### Client-Side Implementation
-
-```typescript
-// app/page.tsx
-"use client";
-
-import React, { useState } from "react";
-import { db } from "../lib/db";
-
-function Login() {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setIsLoading(true);
-
-    try {
-      // Call your custom authentication endpoint
-      const response = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Authentication failed');
-      }
-
-      const { token } = await response.json();
-
-      // ✅ Good: User was authenticated successfully, now sign in with the
-      token
-      await db.auth.signInWithToken(token);
-    } catch (error) {
-      console.error("Login failed:", error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  return (
-    <form onSubmit={handleSubmit}>
-      <input
-        type="email"
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-        placeholder="Email"
-        required
-      />
-      <input
-        type="password"
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-        placeholder="Password"
-        required
-      />
-      <button type="submit" disabled={isLoading}>
-        {isLoading ? "Signing in..." : "Sign In"}
-      </button>
-    </form>
-  );
-}
-```
-
-## Google OAuth Authentication
-
-To use Google OAuth with Instant use the docs at https://www.instantdb.com/docs/auth/google-oauth
-
-## Apple Sign In
-
-To use Apple Sign In with Instant use the docs at https://www.instantdb.com/docs/auth/apple
-
-## Clerk Integration
-
-To use Clerk with Instant use the docs at https://www.instantdb.com/docs/auth/clerk
-
-## Authentication Best Practices
-
-For most applications, magic code authentication should the default choice.

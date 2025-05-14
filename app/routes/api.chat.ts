@@ -258,7 +258,7 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
               for await (const part of result.fullStream) {
                 if (part.type === 'error') {
                   const error: any = part.error;
-                  logger.error(`${error}`);
+                  logger.error(JSON.stringify(error));
 
                   return;
                 }
@@ -295,7 +295,7 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
           for await (const part of result.fullStream) {
             if (part.type === 'error') {
               const error: any = part.error;
-              logger.error(`${error}`);
+              logger.error(JSON.stringify(error));
 
               return;
             }
@@ -352,7 +352,7 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
       },
     });
   } catch (error: any) {
-    logger.error(error);
+    logger.error(JSON.stringify(error));
 
     if (error.message?.includes('API key')) {
       throw new Response('Invalid or missing API key', {
