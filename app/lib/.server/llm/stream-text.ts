@@ -8,6 +8,7 @@ import { allowedHTMLElements } from '~/utils/markdown';
 import { LLMManager } from '~/lib/modules/llm/manager';
 import { createScopedLogger } from '~/utils/logger';
 import { createFilesContext, extractPropertiesFromMessage } from './utils';
+import fs from 'node:fs';
 
 export type Messages = Message[];
 
@@ -180,7 +181,17 @@ ${lockedFilesListString}
 
   logger.info(`Sending llm call to ${provider.name} with model ${modelDetails.name}`);
 
-  // console.log(systemPrompt, processedMessages);
+  console.log('PROMPT', systemPrompt);
+
+  fs.writeFileSync('./system-prompt.txt', systemPrompt);
+
+  console.log('SYSTEM MESSAGES', processedMessages);
+
+  const convoFileName = `convo-${Date.now()}.txt`;
+
+  fs.writeFileSync(convoFileName, JSON.stringify(processedMessages, null, 2));
+
+  fs.appendFileSync(convoFileName, '\nSTART CHUNKS\n\n');
 
   return await _streamText({
     model: provider.getModelInstance({
@@ -192,6 +203,13 @@ ${lockedFilesListString}
     system: systemPrompt,
     maxTokens: dynamicMaxTokens,
     messages: convertToCoreMessages(processedMessages as any),
+    onChunk: (event) => {
+      if (event.chunk.type === 'text-delta' || event.chunk.type === 'reasoning') {
+        fs.appendFileSync(convoFileName, event.chunk.textDelta);
+      }
+
+      return Promise.resolve();
+    },
     ...options,
   });
 }

@@ -1,4 +1,12 @@
-import type { ActionType, BoltAction, BoltActionData, FileAction, ShellAction, SupabaseAction } from '~/types/actions';
+import type {
+  ActionType,
+  BoltAction,
+  BoltActionData,
+  FileAction,
+  InstantDBAction,
+  ShellAction,
+  SupabaseAction,
+} from '~/types/actions';
 import type { BoltArtifactData } from '~/types/artifact';
 import { createScopedLogger } from '~/utils/logger';
 import { unreachable } from '~/utils/unreachable';
@@ -101,9 +109,51 @@ export class StreamingMessageParser {
         }
 
         if (state.insideAction) {
+          // ── NEW: restart current action on a nested <boltAction> ──
+          const nextOpenIndex = input.indexOf(ARTIFACT_ACTION_TAG_OPEN, i);
           const closeIndex = input.indexOf(ARTIFACT_ACTION_TAG_CLOSE, i);
+          const currentAction = state.currentAction; // This is the action we might be closing/restarting
 
-          const currentAction = state.currentAction;
+          if (nextOpenIndex !== -1 && (closeIndex === -1 || nextOpenIndex < closeIndex)) {
+            // 1) finalize & emit close for the action up to the new tag
+            const cur = state.currentAction;
+            cur.content += input.slice(i, nextOpenIndex);
+
+            let trimmed = cur.content.trim();
+
+            if ('type' in cur && cur.type === 'file') {
+              trimmed = cleanEscapedTags(cleanoutMarkdownSyntax(trimmed)) + '\n';
+            }
+
+            cur.content = trimmed;
+
+            this._options.callbacks?.onActionClose?.({
+              artifactId: state.currentArtifact!.id,
+              messageId,
+              actionId: String(state.actionId - 1),
+              action: cur as BoltAction,
+            });
+
+            // 2) parse & emit open for the new action
+            const tagEnd = input.indexOf('>', nextOpenIndex);
+
+            if (tagEnd !== -1) {
+              state.currentAction = this.#parseActionTag(input, nextOpenIndex, tagEnd);
+              this._options.callbacks?.onActionOpen?.({
+                artifactId: state.currentArtifact!.id,
+                messageId,
+                actionId: String(state.actionId++),
+                action: state.currentAction as BoltAction,
+              });
+              i = tagEnd + 1;
+              continue;
+            }
+
+            // incomplete tag: drop back into buffering
+            state.insideAction = false;
+            state.currentAction = { content: '' };
+            break;
+          }
 
           if (closeIndex !== -1) {
             currentAction.content += input.slice(i, closeIndex);
@@ -312,6 +362,31 @@ export class StreamingMessageParser {
         }
 
         (actionAttributes as SupabaseAction).filePath = filePath;
+      }
+    } else if (actionType === 'instantdb') {
+      const operation = this.#extractAttribute(actionTag, 'operation');
+
+      if (!operation || !['create-app'].includes(operation)) {
+        logger.warn('Invalid or missing operation for InstantDB action: ${operation}');
+        throw new Error(`Invalid InstantDB operation: ${operation}`);
+      }
+
+      (actionAttributes as InstantDBAction).operation = operation as 'create-app';
+
+      if (operation === 'create-app') {
+        const schemaFilePath = this.#extractAttribute(actionTag, 'schemaFilePath');
+        const rulesFilePath = this.#extractAttribute(actionTag, 'rulesFilePath');
+        const appIdFilePath = this.#extractAttribute(actionTag, 'appIdFilePath');
+        const appIdPlaceholderValue = this.#extractAttribute(actionTag, 'appIdPlaceholderValue');
+
+        if (!appIdFilePath || !appIdPlaceholderValue) {
+          throw new Error('Invalid InstantDB operation: Missing appIdFilePath or appIdPlaceholderValue.');
+        }
+
+        (actionAttributes as InstantDBAction).schemaFilePath = schemaFilePath;
+        (actionAttributes as InstantDBAction).rulesFilePath = rulesFilePath;
+        (actionAttributes as InstantDBAction).appIdFilePath = appIdFilePath;
+        (actionAttributes as InstantDBAction).appIdPlaceholderValue = appIdPlaceholderValue;
       }
     } else if (actionType === 'file') {
       const filePath = this.#extractAttribute(actionTag, 'filePath') as string;

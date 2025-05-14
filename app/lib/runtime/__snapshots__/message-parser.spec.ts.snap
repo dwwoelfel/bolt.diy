@@ -111,6 +111,102 @@ exports[`StreamingMessageParser > valid artifacts with actions > should correctl
 }
 `;
 
+exports[`StreamingMessageParser > valid artifacts with restarted actions > should correctly parse chunks and strip out bolt artifacts (0) > onActionClose 1`] = `
+{
+  "action": {
+    "content": "npm install",
+    "type": "shell",
+  },
+  "actionId": "0",
+  "artifactId": "artifact_1",
+  "messageId": "message_1",
+}
+`;
+
+exports[`StreamingMessageParser > valid artifacts with restarted actions > should correctly parse chunks and strip out bolt artifacts (0) > onActionClose 2`] = `
+{
+  "action": {
+    "content": "some
+",
+    "filePath": "index.js",
+    "type": "file",
+  },
+  "actionId": "1",
+  "artifactId": "artifact_1",
+  "messageId": "message_1",
+}
+`;
+
+exports[`StreamingMessageParser > valid artifacts with restarted actions > should correctly parse chunks and strip out bolt artifacts (0) > onActionClose 3`] = `
+{
+  "action": {
+    "content": "some content
+",
+    "filePath": "index.js",
+    "type": "file",
+  },
+  "actionId": "2",
+  "artifactId": "artifact_1",
+  "messageId": "message_1",
+}
+`;
+
+exports[`StreamingMessageParser > valid artifacts with restarted actions > should correctly parse chunks and strip out bolt artifacts (0) > onActionOpen 1`] = `
+{
+  "action": {
+    "content": "",
+    "type": "shell",
+  },
+  "actionId": "0",
+  "artifactId": "artifact_1",
+  "messageId": "message_1",
+}
+`;
+
+exports[`StreamingMessageParser > valid artifacts with restarted actions > should correctly parse chunks and strip out bolt artifacts (0) > onActionOpen 2`] = `
+{
+  "action": {
+    "content": "",
+    "filePath": "index.js",
+    "type": "file",
+  },
+  "actionId": "1",
+  "artifactId": "artifact_1",
+  "messageId": "message_1",
+}
+`;
+
+exports[`StreamingMessageParser > valid artifacts with restarted actions > should correctly parse chunks and strip out bolt artifacts (0) > onActionOpen 3`] = `
+{
+  "action": {
+    "content": "",
+    "filePath": "index.js",
+    "type": "file",
+  },
+  "actionId": "2",
+  "artifactId": "artifact_1",
+  "messageId": "message_1",
+}
+`;
+
+exports[`StreamingMessageParser > valid artifacts with restarted actions > should correctly parse chunks and strip out bolt artifacts (0) > onArtifactClose 1`] = `
+{
+  "id": "artifact_1",
+  "messageId": "message_1",
+  "title": "Some title",
+  "type": undefined,
+}
+`;
+
+exports[`StreamingMessageParser > valid artifacts with restarted actions > should correctly parse chunks and strip out bolt artifacts (0) > onArtifactOpen 1`] = `
+{
+  "id": "artifact_1",
+  "messageId": "message_1",
+  "title": "Some title",
+  "type": undefined,
+}
+`;
+
 exports[`StreamingMessageParser > valid artifacts without actions > should correctly parse chunks and strip out bolt artifacts (0) > onArtifactClose 1`] = `
 {
   "id": "artifact_1",

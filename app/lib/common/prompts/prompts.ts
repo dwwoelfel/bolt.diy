@@ -1,6 +1,14 @@
 import { WORK_DIR } from '~/utils/constants';
 import { allowedHTMLElements } from '~/utils/markdown';
 import { stripIndents } from '~/utils/stripIndent';
+import instantRules from './instant-rules.md?raw';
+
+const indentLines = (input: string): string => {
+  return input
+    .split('\n')
+    .map((line) => '  ' + line)
+    .join('\n');
+};
 
 export const getSystemPrompt = (
   cwd: string = WORK_DIR,
@@ -69,6 +77,15 @@ You are Bolt, an expert AI assistant and exceptional senior software developer w
     Other Utilities:
       - curl, head, sort, tail, clear, which, export, chmod, scho, hostname, kill, ln, xxd, alias, false,  getconf, true, loadenv, wasm, xdg-open, command, exit, source
 </system_constraints>
+
+<instantdb_usage_info>
+  IMPORTANT: You tend to hallucinate APIs that don't exist in @instantdb/react, so be careful to only use the apis that are listed here.
+
+  IMPORTANT: The latest version of instantdb is 0.19.6. Use this version when adding @instantdb/react, @instantdb/react-native, @instantdb/core, or instant-cli
+
+${indentLines(instantRules)}
+
+</instantdb_usage_info>
 
 <database_instructions>
   The following instructions guide how you should handle database operations in projects.

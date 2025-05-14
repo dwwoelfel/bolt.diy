@@ -314,6 +314,7 @@ export async function getSnapshot(db: IDBDatabase, chatId: string): Promise<Snap
 }
 
 export async function setSnapshot(db: IDBDatabase, chatId: string, snapshot: Snapshot): Promise<void> {
+  console.log('setSnapshot', chatId);
   return new Promise((resolve, reject) => {
     const transaction = db.transaction('snapshots', 'readwrite');
     const store = transaction.objectStore('snapshots');

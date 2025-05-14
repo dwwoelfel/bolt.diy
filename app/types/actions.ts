@@ -1,6 +1,6 @@
 import type { Change } from 'diff';
 
-export type ActionType = 'file' | 'shell' | 'supabase';
+export type ActionType = 'file' | 'shell' | 'supabase' | 'instantdb';
 
 export interface BaseAction {
   content: string;
@@ -30,7 +30,16 @@ export interface SupabaseAction extends BaseAction {
   projectId?: string;
 }
 
-export type BoltAction = FileAction | ShellAction | StartAction | BuildAction | SupabaseAction;
+export interface InstantDBAction extends BaseAction {
+  type: 'instantdb';
+  operation: 'create-app';
+  schemaFilePath?: string;
+  rulesFilePath?: string;
+  appIdFilePath: string;
+  appIdPlaceholderValue: string;
+}
+
+export type BoltAction = FileAction | ShellAction | StartAction | BuildAction | SupabaseAction | InstantDBAction;
 
 export type BoltActionData = BoltAction | BaseAction;
 

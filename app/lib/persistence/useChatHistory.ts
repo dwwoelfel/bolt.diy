@@ -101,6 +101,8 @@ export function useChatHistory() {
             setArchivedMessages(archivedMessages);
 
             if (startingIdx > 0) {
+              console.log('VALID SNAPSHOT', validSnapshot);
+
               const files = Object.entries(validSnapshot?.files || {})
                 .map(([key, value]) => {
                   if (value?.type !== 'file') {
@@ -225,6 +227,11 @@ ${value.content}
   const restoreSnapshot = useCallback(async (id: string, snapshot?: Snapshot) => {
     // const snapshotStr = localStorage.getItem(`snapshot:${id}`); // Remove localStorage usage
     const container = await webcontainer;
+
+    console.log('RESTORE SNAPSHOT!!!');
+
+    globalThis._wc = container;
+    globalThis._ws = WritableStream;
 
     const validSnapshot = snapshot || { chatIndex: '', files: {} };
 
