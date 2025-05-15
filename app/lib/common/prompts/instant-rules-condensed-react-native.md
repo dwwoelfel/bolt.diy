@@ -2,7 +2,7 @@ This guide explains how to initialize an InstantDB project in your application.
 
 ## Install Instant
 
-First, make sure to install npm install `@instantdb/react` 0.19.6.
+First, make sure to install npm install `@instantdb/react-native` 0.19.6.
 
 ## Getting Your App ID
 
@@ -13,7 +13,7 @@ When adding InstantDB to an application, you need to obtain an app id. First, ge
 
 ## Environment Variables for App ID
 
-Prefer storing the app id in the proper .env file for the framework. Since you use Vite, Save the environment variable as `VITE_INSTANT_APP_ID`.
+Prefer storing the app id in the proper .env file for the framework. Since you use Vite, Save the environment variable as `EXPO_PUBLIC_INSTANT_APP_ID`.
 
 # A full Getting Started Example
 
@@ -21,14 +21,12 @@ To get a sense of how to use queries and transactions, here's a full example of 
 
 ```javascript
 // instant.schema.ts
-import { i, InstaQLEntity } from "@instantdb/react";
+import { i, InstaQLEntity } from "@instantdb/react-native";
 
 const _schema = i.schema({
   entities: {
-    todos: i.entity({
-      text: i.string(),
-      done: i.boolean(),
-      createdAt: i.number(),
+    colors: i.entity({
+      value: i.string(),
     }),
   },
 });
@@ -42,11 +40,11 @@ export type { AppSchema };
 export default schema;
 
 // lib/db.ts
-import { init } from '@instantdb/react';
+import { init } from '@instantdb/react-native';
 import schema from '../instant.schema';
 
 export const db = init({
-  appId: process.env.VITE_INSTANT_APP_ID,
+  appId: process.env.EXPO_PUBLIC_INSTANT_APP_ID,
   schema,
 });
 
@@ -54,164 +52,89 @@ export const db = init({
 import { id, init, InstaQLEntity } from "@instantdb/react";
 import { db } from '../lib/db';
 import { AppSchema } from '../instant.schema';
+import { View, Text, Button, StyleSheet } from 'react-native';
 
-type Todo = InstaQLEntity<AppSchema, "todos">;
+type Color = InstaQLEntity<typeof schema, 'colors'>;
 
-const db = init({ appId: process.env.VITE_INSTANT_APP_ID, schema });
+const db = init({ appId: process.env.EXPO_PUBLIC_INSTANT_APP_ID, schema });
+
+const selectId = '4d39508b-9ee2-48a3-b70d-8192d9c5a059';
 
 function App() {
-  // Read Data
-  const { isLoading, error, data } = db.useQuery({ todos: {} });
+  const { isLoading, error, data } = db.useQuery({
+    colors: {
+      $: { where: { id: selectId } },
+    },
+  });
   if (isLoading) {
-    return;
+    return (
+      <View>
+        <Text>Loading...</Text>
+      </View>
+    );
   }
   if (error) {
-    return <div className="text-red-500 p-4">Error: {error.message}</div>;
+    return (
+      <View>
+        <Text>Error: {error.message}</Text>
+      </View>
+    );
   }
-  const { todos } = data;
+
+  return <Main color={data.colors[0]} />;
+}
+
+function Main(props: { color?: Color }) {
+  const { value } = props.color || { value: 'lightgray' };
+
   return (
-    <div className="font-mono min-h-screen flex justify-center items-center flex-col space-y-4">
-      <h2 className="tracking-wide text-5xl text-gray-300">todos</h2>
-      <div className="border border-gray-300 max-w-xs w-full">
-        <TodoForm todos={todos} />
-        <TodoList todos={todos} />
-        <ActionBar todos={todos} />
-      </div>
-      <div className="text-xs text-center">
-        Open another tab to see todos update in realtime!
-      </div>
-    </div>
-  );
-}
-
-// Write Data
-// ---------
-function addTodo(text: string) {
-  db.transact(
-    db.tx.todos[id()].update({
-      text,
-      done: false,
-      createdAt: Date.now(),
-    })
-  );
-}
-
-function deleteTodo(todo: Todo) {
-  db.transact(db.tx.todos[todo.id].delete());
-}
-
-function toggleDone(todo: Todo) {
-  db.transact(db.tx.todos[todo.id].update({ done: !todo.done }));
-}
-
-function deleteCompleted(todos: Todo[]) {
-  const completed = todos.filter((todo) => todo.done);
-  const txs = completed.map((todo) => db.tx.todos[todo.id].delete());
-  db.transact(txs);
-}
-
-function toggleAll(todos: Todo[]) {
-  const newVal = !todos.every((todo) => todo.done);
-  db.transact(
-    todos.map((todo) => db.tx.todos[todo.id].update({ done: newVal }))
-  );
-}
-
-
-// Components
-// ----------
-function ChevronDownIcon() {
-  return (
-    <svg viewBox="0 0 20 20">
-      <path
-        d="M5 8 L10 13 L15 8"
-        stroke="currentColor"
-        fill="none"
-        strokeWidth="2"
-      />
-    </svg>
-  );
-}
-
-function TodoForm({ todos }: { todos: Todo[] }) {
-  return (
-    <div className="flex items-center h-10 border-b border-gray-300">
-      <button
-        className="h-full px-2 border-r border-gray-300 flex items-center justify-center"
-        onClick={() => toggleAll(todos)}
-      >
-        <div className="w-5 h-5">
-          <ChevronDownIcon />
-        </div>
-      </button>
-      <form
-        className="flex-1 h-full"
-        onSubmit={(e) => {
-          e.preventDefault();
-          const input = e.currentTarget.input as HTMLInputElement;
-          addTodo(input.value);
-          input.value = "";
-        }}
-      >
-        <input
-          className="w-full h-full px-2 outline-none bg-transparent"
-          autoFocus
-          placeholder="What needs to be done?"
-          type="text"
-          name="input"
-        />
-      </form>
-    </div>
-  );
-}
-
-function TodoList({ todos }: { todos: Todo[] }) {
-  return (
-    <div className="divide-y divide-gray-300">
-      {todos.map((todo) => (
-        <div key={todo.id} className="flex items-center h-10">
-          <div className="h-full px-2 flex items-center justify-center">
-            <div className="w-5 h-5 flex items-center justify-center">
-              <input
-                type="checkbox"
-                className="cursor-pointer"
-                checked={todo.done}
-                onChange={() => toggleDone(todo)}
+    <View style={[styles.container, { backgroundColor: value }]}>
+      <View style={[styles.contentSection]}>
+        <Text style={styles.header}>Hi! pick your favorite color</Text>
+        <View style={styles.spaceX4}>
+          {['green', 'blue', 'purple'].map((c) => {
+            return (
+              <Button
+                title={c}
+                onPress={() => {
+                  db.transact(db.tx.colors[selectId].update({ value: c }));
+                }}
+                key={c}
               />
-            </div>
-          </div>
-          <div className="flex-1 px-2 overflow-hidden flex items-center">
-            {todo.done ? (
-              <span className="line-through">{todo.text}</span>
-            ) : (
-              <span>{todo.text}</span>
-            )}
-          </div>
-          <button
-            className="h-full px-2 flex items-center justify-center text-gray-300 hover:text-gray-500"
-            onClick={() => deleteTodo(todo)}
-          >
-            X
-          </button>
-        </div>
-      ))}
-    </div>
+            );
+          })}
+        </View>
+      </View>
+    </View>
   );
 }
 
-function ActionBar({ todos }: { todos: Todo[] }) {
-  return (
-    <div className="flex justify-between items-center h-10 px-2 text-xs border-t border-gray-300">
-      <div>Remaining todos: {todos.filter((todo) => !todo.done).length}</div>
-      <button
-        className=" text-gray-300 hover:text-gray-500"
-        onClick={() => deleteCompleted(todos)}
-      >
-        Delete Completed
-      </button>
-    </div>
-  );
-}
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  spaceY4: {
+    marginVertical: 16,
+  },
+  spaceX4: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginHorizontal: 16,
+  },
+  contentSection: {
+    backgroundColor: 'white',
+    opacity: 0.8,
+    padding: 12,
+    borderRadius: 8,
+  },
+  header: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginBottom: 16,
+  },
+});
 
 export default App;
 ```
@@ -224,11 +147,11 @@ To start Instant, prefer creating a `lib/db.ts` file, and exporting a db from th
 
 ```typescript
 // lib/db.ts
-import { init } from '@instantdb/react';
+import { init } from '@instantdb/react-native';
 import schema from '../instant.schema';
 
 export const db = init({
-  appId: process.env.VITE_INSTANT_APP_ID,
+  appId: process.env.EXPO_PUBLIC_INSTANT_APP_ID,
   schema,
 });
 ```
@@ -758,7 +681,7 @@ import { init } from '@instantdb/react';
 import schema from './instant.schema';
 
 export const db = init({
-  appId: process.env.VITE_INSTANT_APP_ID,
+  appId: process.env.EXPO_PUBLIC_INSTANT_APP_ID,
   schema,
 });
 
@@ -1830,9 +1753,11 @@ InstantDB does not provide built-in username/password authentication.
 
 Here's a complete example of how to implement magic code authentication using React, and the InstantDB React SDK in a client-side application.
 
+Note: this uses html, but you can infer what you'd need to do for React Native
+
 ```typescript
 // instant.schema.ts
-import { i } from '@instantdb/react';
+import { i } from '@instantdb/react-native';
 
 const _schema = i.schema({
   entities: {
