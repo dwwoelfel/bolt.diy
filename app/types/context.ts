@@ -22,3 +22,8 @@ export type DataStreamError = {
   id: string;
   message: string;
 };
+  
+export type SegmentsGroupAnnotation = {
+  type: 'segmentsGroup';
+  segmentsGroupId: string;
+};

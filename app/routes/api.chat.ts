@@ -6,7 +6,7 @@ import { streamText, type Messages, type StreamingOptions } from '~/lib/.server/
 import type { IProviderSetting } from '~/types/model';
 import { createScopedLogger } from '~/utils/logger';
 import { getFilePaths, selectContext } from '~/lib/.server/llm/select-context';
-import type { ContextAnnotation, DataStreamError, ProgressAnnotation } from '~/types/context';
+import type { ContextAnnotation, ProgressAnnotation, DataStreamError, SegmentsGroupAnnotation } from '~/types/context';
 import { WORK_DIR } from '~/utils/constants';
 import { createSummary } from '~/lib/.server/llm/create-summary';
 import { extractPropertiesFromMessage } from '~/lib/.server/llm/utils';
@@ -58,6 +58,7 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
   );
 
   let responseSegments = 0;
+  const segmentsGroupId = generateId();
 
   const cumulativeUsage = {
     completionTokens: 0,
@@ -251,6 +252,11 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
               role: 'user',
               content: `[Model: ${model}]\n\n[Provider: ${provider}]\n\n${CONTINUE_PROMPT}`,
             });
+
+            dataStream.writeMessageAnnotation({
+              type: 'segmentsGroup',
+              segmentsGroupId,
+            } satisfies SegmentsGroupAnnotation);
 
             const result = await streamText({
               messages,

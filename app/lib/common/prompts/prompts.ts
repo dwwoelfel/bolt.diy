@@ -1,6 +1,14 @@
 import { WORK_DIR } from '~/utils/constants';
 import { allowedHTMLElements } from '~/utils/markdown';
 import { stripIndents } from '~/utils/stripIndent';
+import instantRules from './instant-rules.md?raw';
+
+const indentLines = (input: string): string => {
+  return input
+    .split('\n')
+    .map((line) => '  ' + line)
+    .join('\n');
+};
 
 export const getSystemPrompt = (
   cwd: string = WORK_DIR,
@@ -69,6 +77,15 @@ You are Bolt, an expert AI assistant and exceptional senior software developer w
     Other Utilities:
       - curl, head, sort, tail, clear, which, export, chmod, scho, hostname, kill, ln, xxd, alias, false,  getconf, true, loadenv, wasm, xdg-open, command, exit, source
 </system_constraints>
+
+<instantdb_usage_info>
+  IMPORTANT: You tend to hallucinate APIs that don't exist in @instantdb/react, so be careful to only use the apis that are listed here.
+
+  IMPORTANT: The latest version of instantdb is 0.19.6. Use this version when adding @instantdb/react, @instantdb/react-native, @instantdb/core, or instant-cli
+
+${indentLines(instantRules)}
+
+</instantdb_usage_info>
 
 <database_instructions>
   The following instructions guide how you should handle database operations in projects.
@@ -698,7 +715,12 @@ Here are some examples of correct usage of artifacts:
 </examples>
 `;
 
-export const CONTINUE_PROMPT = stripIndents`
-  Continue your prior response. IMPORTANT: Immediately begin from where you left off without any interruptions.
-  Do not repeat any content, including artifact and action tags.
-`;
+export const CONTINUE_PROMPT = `Continue your prior response.
+Important: continue your last message without any interruptions, even if you're in the middle of a thought. You are continuing a document that will be re-assembled later. Never repeat any text that has already been sent.
+Example:
+  Previous message:
+    <boltAction filePath="index.html"><!DOCTYPE html><html lang
+  Bad: Repeats the previous message. This creates an unreadable document.
+    <boltAction filePath="index.html"><!DOCTYPE html><html lang="en"><body>
+  Good: Continues from where the previous message left off:
+      ="en"><body>`;

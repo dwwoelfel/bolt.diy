@@ -156,6 +156,21 @@ describe('StreamingMessageParser', () => {
       runTest(input, expected);
     });
   });
+
+  describe('valid artifacts with restarted actions', () => {
+    it.each<[string | string[], ExpectedResult | string]>([
+      [
+        'Before <boltArtifact title="Some title" id="artifact_1"><boltAction type="shell">npm install</boltAction><boltAction type="file" filePath="index.js">some <boltAction type="file" filePath="index.js"> some content</boltAction></boltArtifact> After',
+        //'Before <boltArtifact title="Some title" id="artifact_1"><boltAction type="shell">npm install</boltAction><boltAction type="file" filePath="index.js">some content</boltAction></boltArtifact> After',
+        {
+          output: 'Before  After',
+          callbacks: { onArtifactOpen: 1, onArtifactClose: 1, onActionOpen: 3, onActionClose: 3 },
+        },
+      ],
+    ])('should correctly parse chunks and strip out bolt artifacts (%#)', (input, expected) => {
+      runTest(input, expected);
+    });
+  });
 });
 
 function runTest(input: string | string[], outputOrExpectedResult: string | ExpectedResult) {
