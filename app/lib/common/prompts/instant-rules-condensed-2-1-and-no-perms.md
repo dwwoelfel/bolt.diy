@@ -1,9 +1,5 @@
 This guide explains how to initialize an InstantDB project in your application.
 
-## Install Instant
-
-First, make sure to install npm install `@instantdb/react` 0.19.6.
-
 ## Getting Your App ID
 
 When adding InstantDB to an application, you need to obtain an app id. First, generate the files with the placeholder YOUR_INSTANT_APP_ID. Then you must emit a `create-app` action:
@@ -547,6 +543,22 @@ profileUser: {
 },
 ```
 
+### Cascade Delete
+
+You can configure links to automatically delete dependent entities:
+
+```typescript
+// ✅ Good: Setting up cascade delete
+const _schema = i.schema({
+  links: {
+    postAuthor: {
+      forward: { on: 'posts', has: 'one', label: 'author', onDelete: 'cascade' },
+      reverse: { on: 'profiles', has: 'many', label: 'authoredPosts' },
+    },
+  },
+});
+```
+
 With this configuration, deleting a profile will also delete all posts authored by that profile.
 
 ## Complete Schema Example
@@ -640,6 +652,17 @@ function PostEditor({ post }: { post: Post }) {
   return <h1>{post.title}</h1>;
 }
 ```
+
+## Schema Modifications
+
+You **CANNOT** rename or delete attributes in the CLI. Instead inform users to:
+
+1. Go to the [InstantDB Dashboard](https://instantdb.com/dash)
+2. Navigate to "Explorer"
+3. Select the namespace you want to modify
+4. Click "Edit Schema"
+5. Select the attribute you want to modify
+6. Use the modal to rename, delete, or change indexing
 
 ## Best Practices
 
@@ -861,6 +884,60 @@ db.transact(db.tx.todos[todoId].link({ $users: auth.userId }));
 
 This will only change the specified field(s), leaving other fields untouched.
 
+### Deep Merging Objects
+
+Use `merge` for updating nested objects without overwriting unspecified fields:
+
+```typescript
+// ✅ Good: Update nested values without losing other data
+db.transact(
+  db.tx.profiles[userId].merge({
+    preferences: {
+      theme: 'dark',
+    },
+  }),
+);
+```
+
+❌ **Common mistake**: Using `update` for nested objects
+
+```typescript
+// ❌ Bad: This will overwrite the entire preferences object
+db.transact(
+  db.tx.profiles[userId].update({
+    preferences: { theme: 'dark' }, // Any other preferences will be lost
+  }),
+);
+```
+
+### Removing Object Keys
+
+Remove keys from nested objects by setting them to `null`:
+
+```typescript
+// ✅ Good: Remove a nested key
+db.transact(
+  db.tx.profiles[userId].merge({
+    preferences: {
+      notifications: null, // This will remove the notifications key
+    },
+  }),
+);
+```
+
+❌ **Common mistake**: Calling `update` instead of `merge` for removing keys
+
+```typescript
+// ❌ Bad: Calling `update` will overwrite the entire preferences object
+db.transact(
+  db.tx.profiles[userId].update({
+    preferences: {
+      notifications: null,
+    },
+  }),
+);
+```
+
 ## Deleting Entities
 
 Delete entities completely:
@@ -977,6 +1054,78 @@ db.transact([
 ]);
 ```
 
+## Performance Optimization
+
+### Batching Large Transactions
+
+Large transactions can lead to timeouts. To avoid this, break them into smaller batches:
+
+```typescript
+// ✅ Good: Batch large operations
+import { id } from '@instantdb/react';
+
+const batchSize = 100;
+const createManyTodos = async (count) => {
+  for (let i = 0; i < count; i += batchSize) {
+    const batch = [];
+
+    // Create up to batchSize transactions
+    for (let j = 0; j < batchSize && i + j < count; j++) {
+      batch.push(
+        db.tx.todos[id()].update({
+          text: `Todo ${i + j}`,
+          done: false,
+        }),
+      );
+    }
+
+    // Execute this batch
+    await db.transact(batch);
+  }
+};
+
+// Create 1000 todos in batches
+createManyTodos(1000);
+```
+
+❌ **Common mistake**: Not batching large transactions leads to timeouts
+
+```typescript
+import { id } from '@instantdb/react';
+
+const txs = [];
+for (let i = 0; i < 1000; i++) {
+  txs.push(
+    db.tx.todos[id()].update({
+      text: `Todo ${i}`,
+      done: false,
+    }),
+  );
+}
+
+// ❌ Bad: This will likely lead to a timeout!
+await db.transact(txs);
+```
+
+❌ **Common mistake**: Creating too many transactions will also lead to timeouts
+
+```typescript
+import { id } from '@instantdb/react';
+
+// ❌ Bad: This fire 1000 transactions at once and will lead to multiple
+timeouts!;
+for (let i = 0; i < 1000; i++) {
+  db.transact(
+    db.tx.todos[id()].update({
+      text: `Todo ${i}`,
+      done: false,
+    }),
+  );
+}
+
+await db.transact(txs);
+```
+
 ## Common Patterns
 
 ### Create-or-Update Pattern
@@ -990,6 +1139,53 @@ db.transact(
     lastLoginAt: Date.now(),
   }),
 );
+```
+
+### Toggle Boolean Flag
+
+Efficiently toggle boolean values:
+
+```typescript
+// ✅ Good: Toggle a todo's completion status
+const toggleTodo = (todo) => {
+  db.transact(db.tx.todos[todo.id].update({ done: !todo.done }));
+};
+```
+
+### Dependent Transactions
+
+Wait for one transaction to complete before starting another:
+
+```typescript
+// ✅ Good: Sequential dependent transactions
+const createProjectAndTasks = async (projectData) => {
+  // First create the project
+  const result = await db.transact(db.tx.projects[id()].update(projectData));
+
+  // Then create tasks linked to the project
+  const projectId = result.ids.projects[0]; // Get ID from the result
+  await db.transact(
+    db.tx.tasks[id()]
+      .update({
+        title: 'Initial planning',
+        createdAt: Date.now(),
+      })
+      .link({ project: projectId }),
+  );
+};
+```
+
+## Error Handling
+
+You can handle transaction errors by wrapping transactions in a try/catch block
+
+```typescript
+try {
+  await db.transact(/* ... */);
+} catch (error) {
+  console.error('Transaction failed:', error);
+  // Handle the error appropriately
+}
 ```
 
 # InstaQL: InstantDB Query Language Guide
@@ -1503,6 +1699,47 @@ const query = {
 };
 ```
 
+## Field Selection
+
+Use the `fields` operator to select specific fields to optimize performance:
+
+```typescript
+// ✅ Good: Only fetch title and status fields
+const query = {
+  todos: {
+    $: {
+      fields: ['title', 'status'],
+    },
+  },
+};
+
+// Result will include the selected fields plus 'id' always:
+// {
+//   "todos": [
+//     { "id": "todo-1", "title": "Go running", "status": "completed" },
+//     ...
+//   ]
+// }
+```
+
+This works with nested associations too:
+
+```typescript
+// ✅ Good: Select different fields at different levels
+const query = {
+  goals: {
+    $: {
+      fields: ['title'],
+    },
+    todos: {
+      $: {
+        fields: ['status'],
+      },
+    },
+  },
+};
+```
+
 ## Defer queries
 
 You can defer queries until a condition is met. This is useful when you
@@ -1531,6 +1768,35 @@ const {
     : // Otherwise skip the query, which sets `isLoading` to true
       null,
 );
+```
+
+## Combining Features
+
+You can combine these features to create powerful queries:
+
+```typescript
+// ✅ Good: Complex query combining multiple features
+const query = {
+  goals: {
+    $: {
+      where: {
+        or: [{ status: 'active' }, { 'todos.priority': 'high' }],
+      },
+      limit: 5,
+      order: { serverCreatedAt: 'desc' },
+      fields: ['title', 'description'],
+    },
+    todos: {
+      $: {
+        where: {
+          completed: false,
+          dueDate: { $lt: nextWeek },
+        },
+        fields: ['title', 'dueDate'],
+      },
+    },
+  },
+};
 ```
 
 ## Best Practices

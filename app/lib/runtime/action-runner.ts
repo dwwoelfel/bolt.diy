@@ -606,15 +606,29 @@ export class ActionRunner {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({
-            title: 'App generated from CLI',
+            title: 'App created from bolt.diy!!',
             schema,
             rules,
           }),
         });
 
-        const data = await createAppRes.json();
+        const data = (await createAppRes.json()) as { app: { id: string; 'admin-token': string } };
 
         console.log('data', data);
+
+        const claimRes = await fetch(`https://api.instantdb.com/dash/apps/ephemeral/${data.app.id}/claim`, {
+          // Right now just hacking with the ephemeral API. We may want to use superadmin
+          headers: {
+            Authorization: 'Bearer 36987614-44e8-4bf1-ad5a-e49861eccd77',
+            'content-type': 'application/json',
+          },
+          method: 'POST',
+          body: JSON.stringify({ token: data.app['admin-token'] }),
+        });
+
+        const claimResJson = await claimRes.json();
+
+        console.log('claimResJson', claimResJson);
 
         const appIdContent = await webcontainer.fs.readFile(appIdFilePath, 'utf-8');
 
