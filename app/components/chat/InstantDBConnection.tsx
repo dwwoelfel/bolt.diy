@@ -15,7 +15,6 @@ export function InstantDbConnection() {
     connection: instantdbConn,
     connecting,
     updateToken,
-    instantDBOAuthClientId,
     handleConnect,
     fetchingApps,
     isAppsExpanded,
@@ -57,7 +56,7 @@ export function InstantDbConnection() {
       .finally(() => setOauthConnectLoading(false));
 
     return;
-  }, [instantDBOAuthClientId]);
+  }, [oauthHandler]);
 
   return (
     <div className="relative">
