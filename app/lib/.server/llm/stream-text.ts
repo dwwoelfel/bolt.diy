@@ -21,6 +21,10 @@ export interface StreamingOptions extends Omit<Parameters<typeof _streamText>[0]
       supabaseUrl?: string;
     };
   };
+  instantDBConnection?: {
+    isConnected: boolean;
+    selectedAppId?: string;
+  };
 }
 
 const logger = createScopedLogger('stream-text');
@@ -123,6 +127,7 @@ export async function streamText(props: {
         hasSelectedProject: options?.supabaseConnection?.hasSelectedProject || false,
         credentials: options?.supabaseConnection?.credentials || undefined,
       },
+      instantDB: options?.instantDBConnection,
     }) ?? getSystemPrompt();
 
   if (contextFiles && contextOptimization) {

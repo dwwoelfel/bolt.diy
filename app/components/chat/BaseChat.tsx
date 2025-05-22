@@ -43,6 +43,7 @@ import { ExpoQrModal } from '~/components/workbench/ExpoQrModal';
 import { expoUrlAtom } from '~/lib/stores/qrCodeStore';
 import { useStore } from '@nanostores/react';
 import { StickToBottom, useStickToBottomContext } from '~/lib/hooks';
+import { InstantDbConnection } from './InstantDBConnection';
 
 const TEXTAREA_MIN_HEIGHT = 76;
 
@@ -635,7 +636,10 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                           a new line
                         </div>
                       ) : null}
-                      <SupabaseConnection />
+                      <div className="flex">
+                        <SupabaseConnection />
+                        <InstantDbConnection />
+                      </div>
                       <ExpoQrModal open={qrModalOpen} onClose={() => setQrModalOpen(false)} />
                     </div>
                   </div>

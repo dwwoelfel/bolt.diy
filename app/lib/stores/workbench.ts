@@ -232,12 +232,6 @@ export class WorkbenchStore {
      * This is a more complex feature that would be implemented in a future update
      */
 
-    globalThis._wc = await webcontainer;
-
-    globalThis._ws = WritableStream;
-
-    console.log('SAVING FILE', filePath, new Error());
-
     await this.#filesStore.saveFile(filePath, document.value);
 
     const newUnsavedFiles = new Set(this.unsavedFiles.get());

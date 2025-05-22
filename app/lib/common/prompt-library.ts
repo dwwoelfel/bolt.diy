@@ -14,6 +14,10 @@ export interface PromptOptions {
       supabaseUrl?: string;
     };
   };
+  instantDB?: {
+    isConnected: boolean;
+    selectedAppId?: string;
+  };
 }
 
 export class PromptLibrary {
@@ -28,7 +32,7 @@ export class PromptLibrary {
     default: {
       label: 'Default Prompt',
       description: 'This is the battle tested default system Prompt',
-      get: (options) => getSystemPrompt(options.cwd, options.supabase),
+      get: (options) => getSystemPrompt(options.cwd, options.supabase, options.instantDB),
     },
     enhanced: {
       label: 'Fine Tuned Prompt',

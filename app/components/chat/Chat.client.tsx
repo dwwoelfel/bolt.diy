@@ -27,6 +27,8 @@ import { logStore } from '~/lib/stores/logs';
 import { streamingState } from '~/lib/stores/streaming';
 import { filesToArtifacts } from '~/utils/fileUtils';
 import { supabaseConnection } from '~/lib/stores/supabase';
+import { instantDBConnection } from '~/lib/stores/instantdb';
+import { instantDBStarterPrompt } from '~/utils/selectInstantDB';
 import type { DataStreamError } from '~/types/context';
 
 const toastAnimation = cssTransition({
@@ -128,6 +130,7 @@ export const ChatImpl = memo(
     const actionAlert = useStore(workbenchStore.alert);
     const deployAlert = useStore(workbenchStore.deployAlert);
     const supabaseConn = useStore(supabaseConnection); // Add this line to get Supabase connection
+    const instantDBConn = useStore(instantDBConnection);
     const selectedProject = supabaseConn.stats?.projects?.find(
       (project) => project.id === supabaseConn.selectedProjectId,
     );
@@ -148,6 +151,8 @@ export const ChatImpl = memo(
     const [animationScope, animate] = useAnimate();
 
     const [apiKeys, setApiKeys] = useState<Record<string, string>>({});
+
+    const instantDBStarterMessages = instantDBStarterPrompt(instantDBConn);
 
     // Keep track of the errors we alerted on. useChat gets the same data twice even if they're removed with setData
     const alertedErrorIds = useRef(new Set());
@@ -180,6 +185,12 @@ export const ChatImpl = memo(
             anonKey: supabaseConn?.credentials?.anonKey,
           },
         },
+        instantDB: instantDBConn.isConnected
+          ? {
+              isConnected: instantDBConn.isConnected,
+              selectedAppId: instantDBConn.selectedAppId,
+            }
+          : undefined,
       },
       sendExtraMessageFields: true,
       onError: (e) => {
@@ -386,6 +397,21 @@ export const ChatImpl = memo(
                   content: `[Model: ${model}]\n\n[Provider: ${provider.name}]\n\n${userMessage}`,
                   annotations: ['hidden'],
                 },
+                ...(instantDBStarterMessages
+                  ? [
+                      {
+                        id: `4-${new Date().getTime()}`,
+                        role: 'assistant',
+                        content: instantDBStarterMessages.assistantMessage,
+                      } as Message,
+                      {
+                        id: `5-${new Date().getTime()}`,
+                        role: 'user',
+                        content: `[Model: ${model}]\n\n[Provider: ${provider.name}]\n\n${instantDBStarterMessages.userMessage}`,
+                        annotations: ['hidden'],
+                      } as Message,
+                    ]
+                  : []),
               ]);
               reload();
               setInput('');
@@ -420,6 +446,21 @@ export const ChatImpl = memo(
               })),
             ] as any,
           },
+          ...(instantDBStarterMessages
+            ? [
+                {
+                  id: `2-${new Date().getTime()}`,
+                  role: 'assistant',
+                  content: instantDBStarterMessages.assistantMessage,
+                } as Message,
+                {
+                  id: `3-${new Date().getTime()}`,
+                  role: 'user',
+                  content: `[Model: ${model}]\n\n[Provider: ${provider.name}]\n\n${instantDBStarterMessages.userMessage}`,
+                  annotations: ['hidden'],
+                } as Message,
+              ]
+            : []),
         ]);
         reload();
         setFakeLoading(false);

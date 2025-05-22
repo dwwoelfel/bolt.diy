@@ -26,7 +26,7 @@ This guide explains how to initialize an InstantDB project in your application.
 
 ## Getting Your App ID
 
-When adding InstantDB to an application, you need to obtain an app id. First, generate the files with the placeholder YOUR_INSTANT_APP_ID. Then you must emit a `create-app` action:
+When adding InstantDB to an application, you need to obtain an app id. If you don't have an app id, generate the files with the placeholder YOUR_INSTANT_APP_ID. Then it is critical that you emit a `create-app` action:
 
 <boltAction type="instantdb" operation="create-app" schemaFilePath="/instant.schema.ts" rulesFilePath="/instant.perms.ts" appIdFilePath=".env" appIdPlaceholderValue="YOUR_INSTANT_APP_ID">
 </boltAction>

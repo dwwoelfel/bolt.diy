@@ -253,6 +253,10 @@ const ActionList = memo(({ actions }: ActionListProps) => {
                   >
                     <span className="flex-1">Start Application</span>
                   </a>
+                ) : type === 'instantdb' ? (
+                  action.operation === 'create-app' ? (
+                    <div>Create new InstantDB app</div>
+                  ) : null
                 ) : null}
               </div>
               {(type === 'shell' || type === 'start') && (

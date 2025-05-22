@@ -1,4 +1,5 @@
 import type { Change } from 'diff';
+import type { InstantDBToken } from './instantdb';
 
 export type ActionType = 'file' | 'shell' | 'supabase' | 'instantdb';
 
@@ -30,8 +31,12 @@ export interface SupabaseAction extends BaseAction {
   projectId?: string;
 }
 
-export interface InstantDBAction extends BaseAction {
+export interface BaseInstantDBAction extends BaseAction {
   type: 'instantdb';
+  operation: 'create-app' | 'pull';
+}
+
+export interface InstantDBCreateAppAction extends BaseInstantDBAction {
   operation: 'create-app';
   schemaFilePath?: string;
   rulesFilePath?: string;
@@ -39,7 +44,22 @@ export interface InstantDBAction extends BaseAction {
   appIdPlaceholderValue: string;
 }
 
-export type BoltAction = FileAction | ShellAction | StartAction | BuildAction | SupabaseAction | InstantDBAction;
+export interface InstantDBPullAction extends BaseInstantDBAction {
+  operation: 'pull';
+  token: InstantDBToken;
+  appId: string;
+}
+
+export type InstantDBAction = InstantDBCreateAppAction | InstantDBPullAction;
+
+export type BoltAction =
+  | FileAction
+  | ShellAction
+  | StartAction
+  | BuildAction
+  | SupabaseAction
+  | InstantDBAction
+  | InstantDBPullAction;
 
 export type BoltActionData = BoltAction | BaseAction;
 

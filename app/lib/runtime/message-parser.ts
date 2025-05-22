@@ -3,7 +3,7 @@ import type {
   BoltAction,
   BoltActionData,
   FileAction,
-  InstantDBAction,
+  InstantDBCreateAppAction,
   ShellAction,
   SupabaseAction,
 } from '~/types/actions';
@@ -371,7 +371,7 @@ export class StreamingMessageParser {
         throw new Error(`Invalid InstantDB operation: ${operation}`);
       }
 
-      (actionAttributes as InstantDBAction).operation = operation as 'create-app';
+      (actionAttributes as InstantDBCreateAppAction).operation = operation as 'create-app';
 
       if (operation === 'create-app') {
         const schemaFilePath = this.#extractAttribute(actionTag, 'schemaFilePath');
@@ -383,10 +383,10 @@ export class StreamingMessageParser {
           throw new Error('Invalid InstantDB operation: Missing appIdFilePath or appIdPlaceholderValue.');
         }
 
-        (actionAttributes as InstantDBAction).schemaFilePath = schemaFilePath;
-        (actionAttributes as InstantDBAction).rulesFilePath = rulesFilePath;
-        (actionAttributes as InstantDBAction).appIdFilePath = appIdFilePath;
-        (actionAttributes as InstantDBAction).appIdPlaceholderValue = appIdPlaceholderValue;
+        (actionAttributes as InstantDBCreateAppAction).schemaFilePath = schemaFilePath;
+        (actionAttributes as InstantDBCreateAppAction).rulesFilePath = rulesFilePath;
+        (actionAttributes as InstantDBCreateAppAction).appIdFilePath = appIdFilePath;
+        (actionAttributes as InstantDBCreateAppAction).appIdPlaceholderValue = appIdPlaceholderValue;
       }
     } else if (actionType === 'file') {
       const filePath = this.#extractAttribute(actionTag, 'filePath') as string;

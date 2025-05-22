@@ -12,6 +12,7 @@ import type {
 } from '~/types/actions';
 import { createScopedLogger } from '~/utils/logger';
 import { unreachable } from '~/utils/unreachable';
+import { description as descriptionStore } from '~/lib/persistence';
 import type { ActionCallbackData } from './message-parser';
 import type { BoltShell } from '~/utils/shell';
 
@@ -94,7 +95,6 @@ export class ActionRunner {
     this.onAlert = onAlert;
     this.onSupabaseAlert = onSupabaseAlert;
     this.onDeployAlert = onDeployAlert;
-    globalThis._actionRunner = this;
   }
 
   addAction(data: ActionCallbackData) {
@@ -529,9 +529,49 @@ export class ActionRunner {
     console.log('handle instant action', action);
 
     switch (action.operation) {
-      case 'create-app': {
-        console.log('create app action');
+      case 'pull': {
+        console.log('pull action');
 
+        const webcontainer = await this.#webcontainer;
+        // TODO: Should be some place that keeps track of where the app id
+        //       is stored.
+        const appIdFilePath = nodePath.relative(webcontainer.workdir, '.env');
+        const envLine = `VITE_INSTANT_APP_ID=${action.appId}`;
+
+        try {
+          const envContent = await webcontainer.fs.readFile(appIdFilePath, 'utf-8');
+
+          if (envContent.indexOf('VITE_INSTANT_APP_ID') !== -1) {
+            await webcontainer.fs.writeFile(appIdFilePath, envContent.replaceAll(/VITE_INSTANT_APP_ID=.*/gm, envLine));
+          } else {
+            await webcontainer.fs.writeFile(appIdFilePath, `${envContent.trim()}\n${envLine}\n`);
+          }
+        } catch (e) {
+          if (e instanceof Error && e.message.startsWith('ENOENT')) {
+            await webcontainer.fs.writeFile(appIdFilePath, `${envLine}\n`);
+          } else {
+            throw e;
+          }
+        }
+
+        const process = await webcontainer.spawn('npx', ['--yes', 'instant-cli', 'pull', '--yes'], {
+          env: { INSTANT_CLI_AUTH_TOKEN: action.token.token, INSTANT_CLI_VERBOSE: 1 },
+        });
+
+        process.output.pipeTo(
+          new WritableStream({
+            write(text) {
+              console.log('PULL', text);
+            },
+          }),
+        );
+
+        const exitCode = await process.exit;
+
+        // eslint-disable-next-line no-unneeded-ternary
+        return { success: exitCode === 0 ? true : false };
+      }
+      case 'create-app': {
         const webcontainer = await this.#webcontainer;
 
         const appIdFilePath = nodePath.relative(webcontainer.workdir, action.appIdFilePath);
@@ -543,70 +583,67 @@ export class ActionRunner {
           : null;
         const appIdPlaceholderValue = action.appIdPlaceholderValue;
 
-        // XXX: Should be an api action??
-
         let schema;
         let rules;
 
-        console.log('schemaFilePath', schemaFilePath);
-        console.log('rulesFilePath', rulesFilePath);
+        let schemaProcess;
+        let rulesProcess;
 
         if (schemaFilePath) {
           if (schemaFilePath.endsWith('.ts')) {
-            const res = await webcontainer.spawn('npx', [
+            schemaProcess = await webcontainer.spawn('npx', [
               '--quiet',
               '--yes',
               'tsx',
               '-e',
               `import('./${action.schemaFilePath}').then(m => console.log('__start_schema', JSON.stringify(m.default)))`,
             ]);
-            res.output.pipeTo(
+            schemaProcess.output.pipeTo(
               new WritableStream({
                 write(text) {
-                  console.log('GET SCHEMA', text);
-
                   if (text.startsWith('__start_schema')) {
                     schema = JSON.parse(text.substring('__start_schema'.length).trim());
                   }
                 },
               }),
             );
-            await res.exit;
           }
         }
 
         if (rulesFilePath) {
           if (rulesFilePath.endsWith('.ts')) {
-            const res = await webcontainer.spawn('npx', [
+            rulesProcess = await webcontainer.spawn('npx', [
               '--quiet',
               '--yes',
               'tsx',
               '-e',
               `import('./${action.rulesFilePath}').then(m => console.log('__start_rules', JSON.stringify(m.default)))`,
             ]);
-            res.output.pipeTo(
+            rulesProcess.output.pipeTo(
               new WritableStream({
                 write(text) {
-                  console.log('GET RULES', text);
-
                   if (text.startsWith('__start_rules')) {
                     rules = JSON.parse(text.substring('__start_rules'.length).trim());
                   }
                 },
               }),
             );
-            await res.exit;
           }
         }
 
-        console.log('schema', schema);
-        console.log('rules', rules);
+        if (schemaProcess) {
+          await schemaProcess.exit;
+        }
 
-        const createAppRes = await fetch('https://api.instantdb.com/dash/apps/ephemeral', {
+        if (rulesProcess) {
+          await rulesProcess.exit;
+        }
+
+        const createAppRes = await fetch('/api/instantdb/create-app', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({
-            title: 'App generated from CLI',
+            title: descriptionStore.get() || 'App generated from bolt.fyi',
             schema,
             rules,
           }),
@@ -614,27 +651,20 @@ export class ActionRunner {
 
         const data = await createAppRes.json();
 
-        console.log('data', data);
-
         const appIdContent = await webcontainer.fs.readFile(appIdFilePath, 'utf-8');
-
-        console.log('phv', appIdPlaceholderValue);
-
-        globalThis._cc = appIdContent;
-
-        console.log('appIdContent', appIdContent);
 
         const updatedContent = appIdContent.replaceAll(appIdPlaceholderValue, data.app.id);
 
-        console.log('updatedContent', updatedContent);
-
-        const writeRes = await webcontainer.fs.writeFile(appIdFilePath, updatedContent);
-        console.log('writeRes', writeRes);
+        await webcontainer.fs.writeFile(appIdFilePath, updatedContent);
 
         return { success: true };
       }
-      default:
-        throw new Error(`Unknown operation: ${action.operation}`);
+      default: {
+        const neverAction: never = action;
+
+        // @ts-ignore: The typechecker has failed us, throw a useful runtime error
+        throw new Error(`Unknown operation: ${neverAction.operation}`);
+      }
     }
   }
 

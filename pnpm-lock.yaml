@@ -89,6 +89,9 @@ importers:
       '@iconify-json/svg-spinners':
         specifier: ^1.2.1
         version: 1.2.2
+      '@instantdb/platform':
+        specifier: v0.19.7-experimental.0
+        version: 0.19.7-experimental.0
       '@lezer/highlight':
         specifier: ^1.2.1
         version: 1.2.1
@@ -2006,6 +2009,12 @@ packages:
     engines: {node: ^18.17.0 || ^20.3.0 || >=21.0.0}
     cpu: [x64]
     os: [win32]
+
+  '@instantdb/core@0.19.7-experimental.0':
+    resolution: {integrity: sha512-f8vQmfdHF3vV3L0eii0jyLOE0Q7lb+OqWKPey75m5WKvSz6n2Nu368xeO0I4SzKfXLBYGLqNoDH/QnL8aTELZQ==}
+
+  '@instantdb/platform@0.19.7-experimental.0':
+    resolution: {integrity: sha512-d/JDy3BrM94CSwyER6ddbtqB3kI1qoUMsnUXEJSJk31tNz8UZwgULtfaUrnlMKkIO0Hfiqe5lm2utrmOj4jCrw==}
 
   '@isaacs/cliui@8.0.2':
     resolution: {integrity: sha512-O8jcjabXaleOG9DQ0+ARXWZBTfnP4WNAqzuiJK7ll44AmxGKv/J2M4TPjxjY3znBCfvBXFzucm1twdyFybFqEA==}
@@ -6085,6 +6094,10 @@ packages:
     resolution: {integrity: sha512-71ippSywq5Yb7/tVYyGbkBggbU8H3u5Rz56fH60jGFgr8uHwxs+aSKeqmluIVzM0m0kB7xQjKS6qPfd0b2ZoqQ==}
     hasBin: true
 
+  mutative@1.1.0:
+    resolution: {integrity: sha512-2PJADREjOusk3iJkD3rXV2YjAxTuaLxdfqtqTEt6vcY07LtEBR1seHuBHXWEIuscqRDGvbauYPs+A4Rj/KTczQ==}
+    engines: {node: '>=14.0'}
+
   nanoid@3.3.11:
     resolution: {integrity: sha512-N8SpfPUnUp1bK+PMYW8qSWdl9U+wwNWI4QKxOYDy9JAro3WMX7p2OeVRF9v+347pnakNevPmiHhNmZ2HbFA76w==}
     engines: {node: ^10 || ^12 || ^13.7 || ^14 || >=15.0.1}
@@ -9722,6 +9735,15 @@ snapshots:
 
   '@img/sharp-win32-x64@0.33.5':
     optional: true
+
+  '@instantdb/core@0.19.7-experimental.0':
+    dependencies:
+      mutative: 1.1.0
+      uuid: 9.0.1
+
+  '@instantdb/platform@0.19.7-experimental.0':
+    dependencies:
+      '@instantdb/core': 0.19.7-experimental.0
 
   '@isaacs/cliui@8.0.2':
     dependencies:
@@ -15074,6 +15096,8 @@ snapshots:
   ms@2.1.3: {}
 
   mustache@4.2.0: {}
+
+  mutative@1.1.0: {}
 
   nanoid@3.3.11: {}
 

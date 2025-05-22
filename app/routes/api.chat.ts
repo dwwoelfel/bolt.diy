@@ -36,7 +36,7 @@ function parseCookies(cookieHeader: string): Record<string, string> {
 }
 
 async function chatAction({ context, request }: ActionFunctionArgs) {
-  const { messages, files, promptId, contextOptimization, supabase } = await request.json<{
+  const { messages, files, promptId, contextOptimization, supabase, instantDB } = await request.json<{
     messages: Messages;
     files: any;
     promptId?: string;
@@ -48,6 +48,10 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
         anonKey?: string;
         supabaseUrl?: string;
       };
+    };
+    instantDB?: {
+      isConnected: boolean;
+      selectedAppId?: string;
     };
   }>();
 
@@ -189,6 +193,7 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
 
         const options: StreamingOptions = {
           supabaseConnection: supabase,
+          instantDBConnection: instantDB,
           toolChoice: 'none',
           onFinish: async ({ text: content, finishReason, usage }) => {
             logger.debug('usage', JSON.stringify(usage));

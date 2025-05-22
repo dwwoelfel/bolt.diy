@@ -228,11 +228,6 @@ ${value.content}
     // const snapshotStr = localStorage.getItem(`snapshot:${id}`); // Remove localStorage usage
     const container = await webcontainer;
 
-    console.log('RESTORE SNAPSHOT!!!');
-
-    globalThis._wc = container;
-    globalThis._ws = WritableStream;
-
     const validSnapshot = snapshot || { chatIndex: '', files: {} };
 
     if (!validSnapshot?.files) {
